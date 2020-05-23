@@ -1,4 +1,4 @@
-package go_insfrastructure
+package logs
 
 import (
 	"io"

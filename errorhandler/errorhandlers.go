@@ -1,6 +1,9 @@
-package go_insfrastructure
+package errorhandler
 
-import "errors"
+import (
+	"errors"
+	"github.com/janmbaco/go-infrastructure/logs"
+)
 
 func TryError(callBack func(), errorFunc func(error)) {
 	func() {
@@ -41,7 +44,7 @@ func TryFinally(callBack func(), finallyFunc func()) {
 
 func TryPanic(err error) {
 	if err != nil {
-		Log.Error(err.Error())
+		logs.Log.Error(err.Error())
 		panic(err)
 	}
 }
