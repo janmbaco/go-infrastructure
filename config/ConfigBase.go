@@ -20,10 +20,10 @@ type ConfigBase struct {
 	configChangedSubscriptions []func()
 	onModifiedConfigFile       func()
 	watcherActive              bool
-	defaults                   ConfigDefaults
+	defaults                   *ConfigBase
 }
 
-func NewConfigBase(defaults ConfigDefaults) *ConfigBase {
+func NewConfigBase(defaults *ConfigBase) *ConfigBase {
 	return &ConfigBase{defaults: defaults}
 }
 
@@ -63,7 +63,7 @@ func (this *ConfigBase) writeFile(byDefaults bool) {
 	var content []byte
 	var err error
 	if byDefaults {
-		content, err = json.Marshal(this.defaults.GetDefaults())
+		content, err = json.Marshal(this.defaults)
 	} else {
 		content, err = json.Marshal(this)
 	}
