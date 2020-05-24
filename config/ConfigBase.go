@@ -20,10 +20,10 @@ type ConfigBase struct {
 	configChangedSubscriptions []func()
 	onModifiedConfigFile       func()
 	watcherActive              bool
-	defaults                   *ConfigBase
+	defaults                   interface{}
 }
 
-func NewConfigBase(defaults *ConfigBase) *ConfigBase {
+func NewConfigBase(defaults interface{}) *ConfigBase {
 	return &ConfigBase{defaults: defaults}
 }
 
