@@ -6,26 +6,26 @@ import (
 	"github.com/janmbaco/go-infrastructure/errorhandler"
 )
 
-type Crypter struct {
+type Cipher struct {
 	aead cipher.AEAD
 }
 
-func NewCrypter(key []byte) *Crypter {
+func NewCipher(key []byte) *Cipher {
 	block, err := aes.NewCipher(key)
 	errorhandler.TryPanic(err)
 	aead, err := cipher.NewGCM(block)
 	errorhandler.TryPanic(err)
-	return &Crypter{
+	return &Cipher{
 		aead: aead,
 	}
 }
 
-func (this *Crypter) Encrypt(value []byte) []byte {
+func (this *Cipher) Encrypt(value []byte) []byte {
 	nonce := make([]byte, this.aead.NonceSize())
 	return this.aead.Seal(nonce, nonce, value, nil)
 }
 
-func (this *Crypter) Decrypt(value []byte) []byte {
+func (this *Cipher) Decrypt(value []byte) []byte {
 	nonceSize := this.aead.NonceSize()
 	nonce, cipherValue := value[:nonceSize], value[nonceSize:]
 	plainValue, err := this.aead.Open(nil, nonce, cipherValue, nil)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"github.com/janmbaco/go-infrastructure/config"
 	"github.com/janmbaco/go-infrastructure/errorhandler"
 	"github.com/janmbaco/go-infrastructure/logs"
 	"google.golang.org/grpc"
@@ -42,11 +43,15 @@ const (
 	gRpcSever
 )
 
-func NewListener(configureFunc ConfigureListenerFunc) *listener {
-	return &listener{
+func NewListener(configureFunc ConfigureListenerFunc, onConfigChangeSubscriber config.OnConfigChangeSubscriber) *listener {
+	listener := &listener{
 		configureFunc: configureFunc,
 		serverSetter:  &ServerSetter{},
 	}
+	onConfigChangeSubscriber.Subscribe(func(config *config.ConfigBase) {
+		listener.Restart()
+	})
+	return listener
 }
 
 func (this *listener) SetProtobuf(setProtobufFunc SetProtobufFunc) *listener {
@@ -128,5 +133,5 @@ func (this *listener) initializeServer() {
 
 func (this *listener) Restart() {
 	this.reStart = true
-	this.Stop()
+	errorhandler.TryPanic(this.Stop())
 }

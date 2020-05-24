@@ -6,7 +6,7 @@ import (
 	"github.com/janmbaco/go-infrastructure/logs"
 )
 
-func onErrorContinue(callBack func()) {
+func OnErrorContinue(callBack func()) {
 	defer deferTryError(true, nil, nil)
 	callBack()
 }
