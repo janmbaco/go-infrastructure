@@ -38,10 +38,10 @@ func deferTryError(shouldContinue bool, errorFunc func(error), finallyFunc func(
 		case error:
 			text = re.(error).Error()
 		}
-		logs.Log.Error(text)
 		if errorFunc != nil {
 			errorFunc(errors.New(text))
 		} else if !shouldContinue {
+			logs.Log.Error(text)
 			panic(errors.New(text))
 		}
 
@@ -53,4 +53,19 @@ func TryPanic(err error) {
 		logs.Log.Error(err.Error())
 		panic(err)
 	}
+}
+
+func TryPanicError(err error, errorFunc func(error)) {
+	defer deferTryError(false, errorFunc, nil)
+	TryPanic(err)
+}
+
+func TryPanicFinally(err error, finallyFunc func()) {
+	defer deferTryError(false, nil, finallyFunc)
+	TryPanic(err)
+}
+
+func TryPanicErrorAndFinally(err error, errorFunc func(error), finallyFunc func()) {
+	defer deferTryError(false, errorFunc, finallyFunc)
+	TryPanic(err)
 }
