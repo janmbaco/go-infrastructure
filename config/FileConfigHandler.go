@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/janmbaco/copier"
 	"github.com/janmbaco/go-infrastructure/disk"
 	"github.com/janmbaco/go-infrastructure/errorhandler"
 	"github.com/janmbaco/go-infrastructure/event"
-	"github.com/jinzhu/copier"
 )
 
 const maxTries = 10
