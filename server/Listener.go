@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"github.com/janmbaco/go-infrastructure/config"
-	"github.com/janmbaco/go-infrastructure/errorhandler"
-	"github.com/janmbaco/go-infrastructure/logs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"net"
 	"net/http"
+
+	"github.com/janmbaco/go-infrastructure/config"
+	"github.com/janmbaco/go-infrastructure/errorhandler"
+	"github.com/janmbaco/go-infrastructure/logs"
 )
 
 type (
@@ -43,14 +44,12 @@ const (
 	gRpcSever
 )
 
-func NewListener(configureFunc ConfigureListenerFunc, onConfigChangeSubscriber config.OnConfigChangeSubscriber) *listener {
+func NewListener(configHandler config.ConfigHandler, configureFunc ConfigureListenerFunc) *listener {
 	listener := &listener{
 		configureFunc: configureFunc,
 		serverSetter:  &ServerSetter{},
 	}
-	onConfigChangeSubscriber.Subscribe(func(config *config.ConfigBase) {
-		listener.Restart()
-	})
+	configHandler.OnModifiedConfigSubscriber(listener.Restart)
 	return listener
 }
 
