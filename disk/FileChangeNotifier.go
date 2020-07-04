@@ -13,20 +13,24 @@ type FileChangedNotifier struct {
 	eventPublisher *event.EventPublisher
 	isWatchingFile bool
 	watcher        *fsnotify.Watcher
+	isSubscribing  chan bool
 }
 
 func NewFileChangedNotifier(file string) *FileChangedNotifier {
 	watcher, err := fsnotify.NewWatcher()
 	errorhandler.TryPanic(err)
 	errorhandler.TryPanic(watcher.Add(file))
-	return &FileChangedNotifier{file: file, watcher: watcher, eventPublisher: event.NewEventPublisher()}
+	return &FileChangedNotifier{file: file, watcher: watcher, eventPublisher: event.NewEventPublisher(), isSubscribing: make(chan bool, 1)}
 }
 
 func (this *FileChangedNotifier) Subscribe(subscribeFunc func()) {
+	this.isSubscribing <- true
 	this.eventPublisher.Subscribe(onFileChangedEvent, subscribeFunc)
 	if !this.isWatchingFile {
 		go this.watchFile()
+		this.isWatchingFile = true
 	}
+	<-this.isSubscribing
 }
 
 func (this *FileChangedNotifier) publish() {
@@ -34,14 +38,7 @@ func (this *FileChangedNotifier) publish() {
 }
 
 func (this *FileChangedNotifier) watchFile() {
-	for {
-		select {
-		case event, ok := <-this.watcher.Events:
-			if ok {
-				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove || event.Op&fsnotify.Rename == fsnotify.Rename || event.Op&fsnotify.Chmod == fsnotify.Chmod {
-					this.publish()
-				}
-			}
-		}
+	for range this.watcher.Events {
+		this.publish()
 	}
 }
