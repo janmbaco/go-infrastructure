@@ -11,9 +11,15 @@ func ExistsPath(path string) bool {
 
 func CreateFile(filePath string, content []byte) error {
 	fc, err := os.Create(filePath)
-	defer fc.Close()
+	defer func() {
+		_ = fc.Close()
+	}()
 	if err == nil {
-		fc.Write(content)
+		_, _ = fc.Write(content)
 	}
 	return err
+}
+
+func DeleteFile(filePath string) error {
+	return os.Remove(filePath)
 }

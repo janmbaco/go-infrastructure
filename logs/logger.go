@@ -85,7 +85,9 @@ func (l *mylog) Println(level LogLevel, message string) {
 		if err != nil {
 			log.Println("impossible to log in file:", err)
 		}
-		defer osFile.Close()
+		defer func() {
+			_ = osFile.Close()
+		}()
 		writers = append(writers, osFile)
 	}
 
@@ -101,24 +103,48 @@ func (l *mylog) Println(level LogLevel, message string) {
 	}
 }
 
+func (l *mylog) logError(level LogLevel, err error) {
+	if err != nil {
+		l.Println(level, err.Error())
+	}
+}
+
 func (l *mylog) Trace(message string) {
 	l.Println(Trace, message)
+}
+
+func (l *mylog) TryTrace(err error) {
+	l.logError(Trace, err)
 }
 
 func (l *mylog) Info(message string) {
 	l.Println(Info, message)
 }
 
+func (l *mylog) TryInfo(err error) {
+	l.logError(Info, err)
+}
+
 func (l *mylog) Warning(message string) {
 	l.Println(Warning, message)
+}
+
+func (l *mylog) TryWarning(err error) {
+	l.logError(Warning, err)
 }
 
 func (l *mylog) Error(message string) {
 	l.Println(Error, message)
 }
+func (l *mylog) TryError(err error) {
+	l.logError(Error, err)
+}
 
 func (l *mylog) Fatal(message string) {
 	l.Println(Fatal, message)
+}
+func (l *mylog) TryFatal(err error) {
+	l.logError(Fatal, err)
 }
 
 func setLevel(level LogLevel) map[LogLevel]bool {
