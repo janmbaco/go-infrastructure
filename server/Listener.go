@@ -41,7 +41,7 @@ type (
 
 const (
 	HttpServer ServerType = iota
-	gRpcSever
+	GRpcSever
 )
 
 func NewListener(configHandler config.ConfigHandler, configureFunc ConfigureListenerFunc) *listener {
@@ -55,7 +55,7 @@ func NewListener(configHandler config.ConfigHandler, configureFunc ConfigureList
 
 func (this *listener) SetProtobuf(setProtobufFunc SetProtobufFunc) *listener {
 	this.setProtobufFunc = setProtobufFunc
-	this.serverSetter.ServerType = gRpcSever
+	this.serverSetter.ServerType = GRpcSever
 	return this
 }
 
@@ -80,7 +80,7 @@ func (this *listener) Start() {
 			} else {
 				err = this.httpServer.ListenAndServe()
 			}
-		case gRpcSever:
+		case GRpcSever:
 			var lis net.Listener
 			lis, err = net.Listen("tcp", this.serverSetter.Addr)
 			errorhandler.TryPanic(err)
@@ -89,7 +89,7 @@ func (this *listener) Start() {
 			}
 			err = this.grpcServer.Serve(lis)
 		}
-		logs.Log.Warning(err.Error())
+		logs.Log.TryWarning(err)
 	}
 }
 
@@ -99,7 +99,7 @@ func (this *listener) Stop() error {
 	switch this.serverSetter.ServerType {
 	case HttpServer:
 		err = this.httpServer.Shutdown(context.Background())
-	case gRpcSever:
+	case GRpcSever:
 		this.grpcServer.GracefulStop()
 	}
 	return err
@@ -124,7 +124,7 @@ func (this *listener) initializeServer() {
 			this.httpServer.TLSNextProto = this.serverSetter.TLSNextProto
 		}
 
-	case gRpcSever:
+	case GRpcSever:
 		opts := []grpc.ServerOption{grpc.Creds(credentials.NewTLS(this.serverSetter.TLSConfig))}
 		this.grpcServer = grpc.NewServer(opts...)
 	}
