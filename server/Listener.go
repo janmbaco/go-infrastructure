@@ -65,7 +65,7 @@ func (this *listener) Start() {
 		this.reStart = false
 
 		if this.configureFunc == nil {
-			errorhandler.TryPanic(errors.New("not configured server"))
+			panic(errors.New("not configured server"))
 		}
 		this.configureFunc(this.serverSetter)
 
@@ -84,9 +84,10 @@ func (this *listener) Start() {
 			var lis net.Listener
 			lis, err = net.Listen("tcp", this.serverSetter.Addr)
 			errorhandler.TryPanic(err)
-			if this.setProtobufFunc != nil {
-				this.setProtobufFunc(this.grpcServer)
+			if this.setProtobufFunc == nil {
+				panic(errors.New("ProtoBuffer are not defined, in gRPCServer you must use SetProtobuf function before start listener"))
 			}
+			this.setProtobufFunc(this.grpcServer)
 			err = this.grpcServer.Serve(lis)
 		}
 		logs.Log.TryWarning(err)
@@ -107,12 +108,12 @@ func (this *listener) Stop() error {
 
 func (this *listener) initializeServer() {
 	if this.serverSetter.Addr == "" {
-		errorhandler.TryPanic(errors.New("address not configured"))
+		panic(errors.New("address not configured"))
 	}
 	switch this.serverSetter.ServerType {
 	case HttpServer:
 		if this.serverSetter.Handler == nil {
-			errorhandler.TryPanic(errors.New("handler routes not configured"))
+			panic(errors.New("handler routes not configured"))
 		}
 		this.httpServer = &http.Server{
 			ErrorLog: logs.Log.ErrorLogger,
@@ -125,8 +126,12 @@ func (this *listener) initializeServer() {
 		}
 
 	case GRpcSever:
-		opts := []grpc.ServerOption{grpc.Creds(credentials.NewTLS(this.serverSetter.TLSConfig))}
-		this.grpcServer = grpc.NewServer(opts...)
+		if this.serverSetter.TLSConfig != nil {
+			opts := []grpc.ServerOption{grpc.Creds(credentials.NewTLS(this.serverSetter.TLSConfig))}
+			this.grpcServer = grpc.NewServer(opts...)
+		} else {
+			this.grpcServer = grpc.NewServer()
+		}
 	}
 }
 
