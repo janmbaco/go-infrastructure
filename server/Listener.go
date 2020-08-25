@@ -112,14 +112,13 @@ func (this *listener) initializeServer() {
 	}
 	switch this.serverSetter.ServerType {
 	case HttpServer:
-		if this.serverSetter.Handler == nil {
-			panic(errors.New("handler routes not configured"))
-		}
 		this.httpServer = &http.Server{
 			ErrorLog: logs.Log.ErrorLogger,
 		}
 		this.httpServer.Addr = this.serverSetter.Addr
-		this.httpServer.Handler = this.serverSetter.Handler
+		if this.serverSetter.Handler != nil {
+			this.httpServer.Handler = this.serverSetter.Handler
+		}
 		this.httpServer.TLSConfig = this.serverSetter.TLSConfig
 		if this.serverSetter.TLSNextProto != nil {
 			this.httpServer.TLSNextProto = this.serverSetter.TLSNextProto
