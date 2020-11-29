@@ -38,7 +38,7 @@ func (this *FileConfigHandler) readFile() {
 	var content []byte
 	var err error
 	try := 1
-	for len(content) == 0 || try == maxTries {
+	for len(content) == 0 || try < maxTries {
 		content, err = ioutil.ReadFile(this.filePath)
 		errorhandler.TryPanic(err)
 		try++

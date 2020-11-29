@@ -1,7 +1,8 @@
-package config
+package Config_test
 
 import (
 	"encoding/json"
+	config2 "github.com/janmbaco/go-infrastructure/config"
 	"github.com/janmbaco/go-infrastructure/disk"
 	"github.com/janmbaco/go-infrastructure/errorhandler"
 	"sync"
@@ -17,7 +18,7 @@ func TestNewFileConfigHandler(t *testing.T) {
 	myConfig := &config{
 		Options: "New options",
 	}
-	configHandler := NewFileConfigHandler("config.json")
+	configHandler := config2.NewFileConfigHandler("config.json")
 	configHandler.Load(myConfig)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
