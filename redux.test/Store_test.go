@@ -16,12 +16,12 @@ func TestNewStore(t *testing.T) {
 
 	businessObjectBuilder := redux.NewBusinessObjectBuilder(0, actions)
 
-	businessObjectBuilder.On(actions.Sumar, func(state int, payload int) int {
+	businessObjectBuilder.On(actions.Sumar, func(state int, payload *int) int {
 		var result int
-		if payload == 0 {
+		if payload == nil {
 			result = state + 1
 		} else {
-			result = state + payload
+			result = state + *payload
 		}
 		return result
 	})
@@ -52,11 +52,14 @@ func TestNewStore(t *testing.T) {
 	wg.Add(1)
 	store.Dispatch(actions.Sumar)
 	wg.Add(1)
-	store.Dispatch(actions.Sumar.With(5))
+	a := 5
+	store.Dispatch(actions.Sumar.With(&a))
 	wg.Add(1)
 	store.Dispatch(actions.Sumar)
 	wg.Add(1)
-	store.Dispatch(actions.Sumar.With(-7))
+
+	a = -7
+	store.Dispatch(actions.Sumar.With(&a))
 	wg.Wait()
 
 }

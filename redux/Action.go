@@ -32,7 +32,7 @@ func (action *Action) getPayload() reflect.Value {
 		result = action.payload
 		action.payloaded = false
 	} else {
-		result = reflect.Zero(reflect.TypeOf(reflect.New(action.typ).Elem().Interface()))
+		result = reflect.Zero(action.typ)
 	}
 	return result
 }
