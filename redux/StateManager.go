@@ -4,6 +4,12 @@ import "github.com/janmbaco/go-infrastructure/event"
 
 const onNewStae = "onNewState"
 
+type StateManager interface {
+	GetState() interface{}
+	SetState(interface{})
+	Subscribe(fn func())
+}
+
 type stateManager struct {
 	publisher *event.EventPublisher
 	state     interface{}

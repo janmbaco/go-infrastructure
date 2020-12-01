@@ -5,13 +5,34 @@ import (
 	"reflect"
 )
 
-type Action struct {
+type Action interface {
+	With(interface{}) Action
+	GetPayload() reflect.Value
+	SetType(reflect.Type)
+	GetName() string
+}
+
+type ActionsObject interface {
+	GetActions() []Action
+}
+
+type ActionsContainer interface {
+	GetActionsObject() ActionsObject
+	GetActionsNames() []string
+	Contains(action Action) bool
+	ContainsByName(actionName string) bool
+	GetActionByName(name string) Action
+	GetNameByAction(action Action) string
+}
+
+type action struct {
 	payload   reflect.Value
 	typ       reflect.Type
 	payloaded bool
+	name      string
 }
 
-func (action *Action) With(payload interface{}) *Action {
+func (action *action) With(payload interface{}) Action {
 
 	if action.typ.Kind() == reflect.Invalid {
 		panic("This action is not asociated to any reduce!")
@@ -26,7 +47,7 @@ func (action *Action) With(payload interface{}) *Action {
 	return action
 }
 
-func (action *Action) getPayload() reflect.Value {
+func (action *action) GetPayload() reflect.Value {
 	var result reflect.Value
 	if action.payloaded {
 		result = action.payload
@@ -37,44 +58,93 @@ func (action *Action) getPayload() reflect.Value {
 	return result
 }
 
-type actionName struct {
-	name   string
-	action *Action
+func (action *action) SetType(typ reflect.Type) {
+	action.typ = typ
 }
 
-type actionsContainer struct {
-	idx        uintptr
-	actionName map[uintptr]*actionName
+func (action *action) GetName() string {
+	return action.name
 }
 
-func getActionsContainer(v interface{}) *actionsContainer {
+type actionObject struct {
+	actions []Action
+}
 
-	result := &actionsContainer{
-		idx:        reflect.ValueOf(v).Pointer(),
-		actionName: make(map[uintptr]*actionName),
+func NewActionObject(object interface{}) *actionObject {
+	return &actionObject{getActionsIn(object)}
+}
+
+func (actionObject *actionObject) GetActions() []Action {
+	return actionObject.actions
+}
+
+func getActionsIn(object interface{}) []Action {
+	if object == nil {
+		panic("The object parameter can`t be nil!")
 	}
-
-	rv := reflect.ValueOf(v).Elem()
+	result := make([]Action, 0)
+	rv := reflect.Indirect(reflect.ValueOf(object))
 	rt := rv.Type()
+	actionType := reflect.TypeOf((*Action)(nil)).Elem()
 	for i := 0; i < rt.NumField(); i++ {
-		if rv.Field(i).Type() == reflect.TypeOf(&Action{}) {
-			if rv.Field(i).Pointer() == 0 {
-				rv.Field(i).Set(reflect.ValueOf(&Action{}))
+		if rt.Field(i).Type.Implements(actionType) {
+			if rv.Field(i).IsNil() {
+				rv.Field(i).Set(reflect.ValueOf(&action{name: rt.Field(i).Name}))
 			}
-			result.actionName[rv.Field(i).Pointer()] = &actionName{
-				name:   rt.Field(i).Name,
-				action: rv.Field(i).Interface().(*Action),
-			}
+			result = append(result, rv.Field(i).Elem().Interface().(Action))
 		}
 	}
-	if len(result.actionName) == 0 {
-		panic("There isn`t any action on the actions object!")
+	if len(result) == 0 {
+		panic("There isn`t any action on the actionsContainer object!")
 	}
-
 	return result
 }
 
-func (a *actionsContainer) contains(action *Action) bool {
-	_, ok := a.actionName[reflect.ValueOf(action).Pointer()]
+type actionsContainer struct {
+	actionsObject ActionsObject
+	actionsNames  []string
+	actionByName  map[string]Action
+	nameByAction  map[Action]string
+}
+
+func NewActionsContainer(actionsObject ActionsObject) ActionsContainer {
+
+	result := &actionsContainer{
+		actionsObject: actionsObject,
+		actionsNames:  make([]string, 0),
+		actionByName:  make(map[string]Action),
+		nameByAction:  make(map[Action]string),
+	}
+	for _, b := range actionsObject.GetActions() {
+		result.actionsNames = append(result.actionsNames, b.GetName())
+		result.actionByName[b.GetName()] = b
+		result.nameByAction[b] = b.GetName()
+	}
+	return result
+}
+
+func (aContainer *actionsContainer) GetActionsObject() ActionsObject {
+	return aContainer.actionsObject
+}
+
+func (aContainer *actionsContainer) Contains(action Action) bool {
+	_, ok := aContainer.nameByAction[action]
 	return ok
+}
+
+func (aContainer *actionsContainer) GetActionsNames() []string {
+	return aContainer.actionsNames
+}
+
+func (aContainer *actionsContainer) ContainsByName(actionName string) bool {
+	_, ok := aContainer.actionByName[actionName]
+	return ok
+}
+
+func (aContainer *actionsContainer) GetActionByName(name string) Action {
+	return aContainer.actionByName[name]
+}
+
+func (aContainer *actionsContainer) GetNameByAction(action Action) string {
+	return aContainer.nameByAction[action]
 }

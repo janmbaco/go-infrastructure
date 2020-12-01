@@ -7,30 +7,46 @@ import (
 )
 
 type Actions struct {
-	Sumar *redux.Action
+	actionsObject redux.ActionsObject
+	Sumar         redux.Action
+	Restar        redux.Action
+}
+
+func Sumar(state int, payload *int) int {
+	var result int
+	if payload == nil {
+		result = state + 1
+	} else {
+		result = state + *payload
+	}
+	return result
+}
+
+type RestarObject struct{}
+
+func (ro *RestarObject) Restar(state int, payload *int) int {
+	return state - *payload
 }
 
 func TestNewStore(t *testing.T) {
 
-	actions := &Actions{}
+	var actions = &Actions{}
 
-	businessObjectBuilder := redux.NewBusinessObjectBuilder(0, actions)
+	actions.actionsObject = redux.NewActionObject(actions)
 
-	businessObjectBuilder.On(actions.Sumar, func(state int, payload *int) int {
-		var result int
-		if payload == nil {
-			result = state + 1
-		} else {
-			result = state + *payload
-		}
-		return result
-	})
+	businessObjectBuilder := redux.NewBusinessObjectBuilder(0)
 
-	store := redux.NewStore(businessObjectBuilder.GetBusinessObjecct())
+	businessObjectBuilder.SetActionsObject(actions.actionsObject)
+
+	businessObjectBuilder.On(actions.Sumar, Sumar)
+
+	businessObjectBuilder.SetActionsLogicByObject(&RestarObject{})
+
+	store := redux.NewStore(businessObjectBuilder.GetBusinessObject())
 
 	wg := sync.WaitGroup{}
 	pass := 1
-	store.Subscribe(actions, func(newState interface{}) {
+	store.Subscribe(actions.actionsObject, func(newState interface{}) {
 		t.Log(newState)
 		var expected int
 		switch pass {
@@ -42,6 +58,8 @@ func TestNewStore(t *testing.T) {
 			expected = 7
 		case 4:
 			expected = 0
+		case 5:
+			expected = 7
 		}
 		if newState.(int) != expected {
 			t.Errorf("expected: `%v`, found: `%v`", expected, newState.(int))
@@ -60,6 +78,8 @@ func TestNewStore(t *testing.T) {
 
 	a = -7
 	store.Dispatch(actions.Sumar.With(&a))
+	wg.Add(1)
+	store.Dispatch(actions.Restar.With(&a))
 	wg.Wait()
 
 }

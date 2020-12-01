@@ -1,41 +1,48 @@
 package redux
 
-import "reflect"
+type SubscribeFunc func(newState interface{})
 
-type store struct {
-	businessObjects map[uintptr]*businessObject
+type Store interface {
+	Dispatch(Action)
+	Subscribe(ActionsObject, SubscribeFunc)
 }
 
-func NewStore(bos ...*businessObject) *store {
+type store struct {
+	bo map[ActionsObject]*BusinessObject
+}
+
+func NewStore(businessObjects ...*BusinessObject) Store {
 	newStore := &store{
-		businessObjects: make(map[uintptr]*businessObject),
+		bo: make(map[ActionsObject]*BusinessObject),
 	}
 
-	for _, bo := range bos {
-		if _, ko := newStore.businessObjects[bo.actions.idx]; ko {
-			panic("Cannot add multiple BusinessObjects with the same ActionsContainer!")
+	for _, bo := range businessObjects {
+		actionsObject := bo.ActionsContainer.GetActionsObject()
+		if _, ko := newStore.bo[actionsObject]; ko {
+			panic("Cannot add multiple BusinessObject with the same ActionsObject!")
 		}
-		newStore.businessObjects[bo.actions.idx] = bo
+		newStore.bo[actionsObject] = bo
 	}
 
 	return newStore
 }
 
-func (s *store) Dispatch(action *Action) {
-	for _, bo := range s.businessObjects {
-		if bo.actions.contains(action) {
-			bo.stateManager.SetState(bo.reducer(bo.stateManager.GetState(), action))
+func (s *store) Dispatch(action Action) {
+	for _, bo := range s.bo {
+		if bo.ActionsContainer.Contains(action) {
+			bo.StateManager.SetState(bo.Reducer.Reduce(bo.StateManager.GetState(), action))
 			break
 		}
 	}
 }
 
-func (s *store) Subscribe(actions interface{}, fn func(newState interface{})) {
+func (s *store) Subscribe(actionsObject ActionsObject, subscribeFunc SubscribeFunc) {
 
-	idx := reflect.ValueOf(actions).Pointer()
-	if _, ok := s.businessObjects[idx]; !ok {
-		panic("There is no BusinessObject for that ActionsContainer!")
+	if _, ok := s.bo[actionsObject]; !ok {
+		panic("There is no BusinessObject for that ActionsObject!")
 	}
 
-	s.businessObjects[idx].subscriptions = append(s.businessObjects[idx].subscriptions, fn)
+	s.bo[actionsObject].StateManager.Subscribe(func() {
+		subscribeFunc(s.bo[actionsObject].StateManager.GetState())
+	})
 }

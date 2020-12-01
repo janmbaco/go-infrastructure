@@ -38,10 +38,10 @@ func deferTryError(shouldContinue bool, errorFunc func(error), finallyFunc func(
 		case error:
 			text = re.(error).Error()
 		}
+		logs.Log.Error(text)
 		if errorFunc != nil {
 			errorFunc(errors.New(text))
 		} else if !shouldContinue {
-			logs.Log.Error(text)
 			panic(errors.New(text))
 		}
 
