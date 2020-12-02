@@ -2,8 +2,10 @@ package errorhandler
 
 import (
 	"errors"
-
+	"fmt"
 	"github.com/janmbaco/go-infrastructure/logs"
+	"runtime"
+	"strings"
 )
 
 func OnErrorContinue(callBack func()) {
@@ -68,4 +70,20 @@ func TryPanicFinally(err error, finallyFunc func()) {
 func TryPanicErrorAndFinally(err error, errorFunc func(error), finallyFunc func()) {
 	defer deferTryError(false, errorFunc, finallyFunc)
 	TryPanic(err)
+}
+
+func CheckNilParameter(parameters map[string]interface{}) {
+	panicMessage := make([]string, 1)
+	pc := make([]uintptr, 1)
+	runtime.Callers(2, pc)
+	funcName := runtime.FuncForPC(pc[0]).Name()
+	panicMessage[0] = fmt.Sprintf("Func `%v`", funcName[strings.LastIndexByte(funcName, '/')+1:])
+	for name, parameter := range parameters {
+		if parameter == nil {
+			panicMessage = append(panicMessage, fmt.Sprintf("The parameter '%v' can't be nil!", name))
+		}
+	}
+	if len(panicMessage) > 1 {
+		panic(strings.Join(panicMessage, "\n"))
+	}
 }

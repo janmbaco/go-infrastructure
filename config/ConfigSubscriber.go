@@ -1,13 +1,13 @@
 package config
 
 import (
-	"github.com/janmbaco/go-infrastructure/event"
+	"github.com/janmbaco/go-infrastructure/events"
 )
 
 const onModifiedConfigEvent = "onModifiedConfigEvent"
 
 type ConfigSubscriber struct {
-	eventPublisher *event.EventPublisher
+	eventPublisher events.EventPublisher
 }
 
 func (this *ConfigSubscriber) OnModifiedConfigSubscriber(subscribeFunc func()) {

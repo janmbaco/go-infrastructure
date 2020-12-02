@@ -2,7 +2,8 @@ package redux
 
 import (
 	"fmt"
-	"github.com/janmbaco/go-infrastructure/event"
+	"github.com/janmbaco/go-infrastructure/errorhandler"
+	"github.com/janmbaco/go-infrastructure/events"
 	"github.com/janmbaco/go-infrastructure/logs"
 	"reflect"
 	"strings"
@@ -21,43 +22,24 @@ type businessObjectBuilder struct {
 	blf           map[Action]reflect.Value //business logic funcionality
 }
 
-func NewBusinessObjectBuilder(initialState interface{}) *businessObjectBuilder {
-
-	if initialState == nil {
-		panic("initialState parameter can't be nil")
-	}
+func NewBusinessObjectBuilder(initialState interface{}, actionsObject ActionsObject) *businessObjectBuilder {
+	errorhandler.CheckNilParameter(map[string]interface{}{"initialState": initialState, "actionsObject": actionsObject})
 
 	return &businessObjectBuilder{
-		initialState: initialState,
-		stateManager: &stateManager{
-			publisher: event.NewEventPublisher(),
-			state:     initialState,
-		},
-		blf: make(map[Action]reflect.Value)}
+		initialState:  initialState,
+		stateManager:  NewStateManager(events.NewEventPublisher(), initialState),
+		actionsObject: actionsObject,
+		blf:           make(map[Action]reflect.Value)}
 }
 
-func (builder *businessObjectBuilder) SetActionsObject(object ActionsObject) *businessObjectBuilder {
-	if object == nil {
-		panic("stateManager parameter can't be nil")
-	}
-
-	builder.actionsObject = object
-
-	return builder
-}
-
-func (builder *businessObjectBuilder) SetStateManage(stateManager StateManager) *businessObjectBuilder {
-	if stateManager == nil {
-		panic("stateManager parameter can't be nil")
-	}
+func (builder *businessObjectBuilder) SetStateManager(stateManager StateManager) *businessObjectBuilder {
+	errorhandler.CheckNilParameter(map[string]interface{}{"stateManager": stateManager})
 	builder.stateManager = stateManager
 	return builder
 }
 
 func (builder *businessObjectBuilder) On(action Action, function interface{}) *businessObjectBuilder {
-	if reflect.ValueOf(action).Pointer() == 0 {
-		panic("The action can`t be nil!")
-	}
+	errorhandler.CheckNilParameter(map[string]interface{}{"action": action, "function": function})
 
 	if !builder.actionsObject.Contains(action) {
 		panic("This action doesn`t belong to this BusinesObject!")
@@ -68,10 +50,6 @@ func (builder *businessObjectBuilder) On(action Action, function interface{}) *b
 	}
 
 	functionValue := reflect.ValueOf(function)
-	if functionValue.Pointer() == 0 {
-		panic("The function can`t be nil!")
-	}
-
 	functionType := reflect.TypeOf(function)
 	if functionType.Kind() != reflect.Func {
 		panic("The function must be a Func!")
@@ -88,9 +66,8 @@ func (builder *businessObjectBuilder) On(action Action, function interface{}) *b
 }
 
 func (builder *businessObjectBuilder) SetActionsLogicByObject(object interface{}) *businessObjectBuilder {
-	if object == nil {
-		panic("The object can`t be nil")
-	}
+	errorhandler.CheckNilParameter(map[string]interface{}{"object": object})
+
 	rv := reflect.ValueOf(object)
 	rt := reflect.TypeOf(object)
 	if rt.Kind() != reflect.Ptr && rt.Kind() != reflect.Struct {
@@ -126,7 +103,6 @@ func (builder *businessObjectBuilder) GetBusinessObject() *BusinessObject {
 			panicMessage.WriteString(fmt.Sprintf("The logic for the actionsObject '%v' is not defined!\n", action.GetName()))
 		}
 	}
-
 	if panicMessage.Len() > 0 {
 		panic(panicMessage.String())
 	}

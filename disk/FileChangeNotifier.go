@@ -3,14 +3,14 @@ package disk
 import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/janmbaco/go-infrastructure/errorhandler"
-	"github.com/janmbaco/go-infrastructure/event"
+	"github.com/janmbaco/go-infrastructure/events"
 )
 
 const onFileChangedEvent = "onFileChangedEvent"
 
 type FileChangedNotifier struct {
 	file           string
-	eventPublisher *event.EventPublisher
+	eventPublisher events.EventPublisher
 	isWatchingFile bool
 	watcher        *fsnotify.Watcher
 	isSubscribing  chan bool
@@ -20,7 +20,7 @@ func NewFileChangedNotifier(file string) *FileChangedNotifier {
 	watcher, err := fsnotify.NewWatcher()
 	errorhandler.TryPanic(err)
 	errorhandler.TryPanic(watcher.Add(file))
-	return &FileChangedNotifier{file: file, watcher: watcher, eventPublisher: event.NewEventPublisher(), isSubscribing: make(chan bool, 1)}
+	return &FileChangedNotifier{file: file, watcher: watcher, eventPublisher: events.NewEventPublisher(), isSubscribing: make(chan bool, 1)}
 }
 
 func (this *FileChangedNotifier) Subscribe(subscribeFunc func()) {

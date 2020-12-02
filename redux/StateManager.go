@@ -1,6 +1,9 @@
 package redux
 
-import "github.com/janmbaco/go-infrastructure/event"
+import (
+	"github.com/janmbaco/go-infrastructure/errorhandler"
+	"github.com/janmbaco/go-infrastructure/events"
+)
 
 const onNewStae = "onNewState"
 
@@ -11,8 +14,13 @@ type StateManager interface {
 }
 
 type stateManager struct {
-	publisher *event.EventPublisher
+	publisher events.EventPublisher
 	state     interface{}
+}
+
+func NewStateManager(publisher events.EventPublisher, state interface{}) StateManager {
+	errorhandler.CheckNilParameter(map[string]interface{}{"publisher": publisher, "state": state})
+	return &stateManager{publisher: publisher, state: state}
 }
 
 func (s *stateManager) GetState() interface{} {

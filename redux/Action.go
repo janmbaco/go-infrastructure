@@ -2,6 +2,7 @@ package redux
 
 import (
 	"fmt"
+	"github.com/janmbaco/go-infrastructure/errorhandler"
 	"reflect"
 )
 
@@ -69,6 +70,10 @@ type actionObject struct {
 }
 
 func NewActionObject(object interface{}) *actionObject {
+	errorhandler.CheckNilParameter(map[string]interface{}{"object": object})
+	if object == nil {
+		panic("The object parameter can`t be nil!")
+	}
 	result := &actionObject{
 		actions:      getActionsIn(object),
 		actionsNames: make([]string, 0),
@@ -110,9 +115,6 @@ func (actionObject *actionObject) GetNameByAction(action Action) string {
 }
 
 func getActionsIn(object interface{}) []Action {
-	if object == nil {
-		panic("The object parameter can`t be nil!")
-	}
 	result := make([]Action, 0)
 	rv := reflect.Indirect(reflect.ValueOf(object))
 	rt := rv.Type()

@@ -1,5 +1,7 @@
 package redux
 
+import "github.com/janmbaco/go-infrastructure/errorhandler"
+
 type SubscribeFunc func(newState interface{})
 
 type Store interface {
@@ -12,6 +14,9 @@ type store struct {
 }
 
 func NewStore(businessObjects ...*BusinessObject) Store {
+	if len(businessObjects) == 0 {
+		panic("There must be at least one businessObject parameter")
+	}
 	newStore := &store{
 		bo: make(map[ActionsObject]*BusinessObject),
 	}
@@ -27,6 +32,7 @@ func NewStore(businessObjects ...*BusinessObject) Store {
 }
 
 func (s *store) Dispatch(action Action) {
+	errorhandler.CheckNilParameter(map[string]interface{}{"action": action})
 	for _, bo := range s.bo {
 		if bo.ActionsObject.Contains(action) {
 			bo.StateManager.SetState(bo.Reducer.Reduce(bo.StateManager.GetState(), action))
@@ -36,7 +42,7 @@ func (s *store) Dispatch(action Action) {
 }
 
 func (s *store) Subscribe(actionsObject ActionsObject, subscribeFunc SubscribeFunc) {
-
+	errorhandler.CheckNilParameter(map[string]interface{}{"actionsObject": actionsObject, "subscribeFunc": subscribeFunc})
 	if _, ok := s.bo[actionsObject]; !ok {
 		panic("There is no BusinessObject for that ActionsObject!")
 	}

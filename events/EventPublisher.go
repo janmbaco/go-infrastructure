@@ -1,26 +1,31 @@
-package event
+package events
 
 import "github.com/janmbaco/go-infrastructure/errorhandler"
 
-type EventPublisher struct {
+type EventPublisher interface {
+	Subscribe(name string, subscribeFunc func())
+	Publish(name string)
+}
+
+type eventPublisher struct {
 	subscriptions map[string][]func()
 	isBusy        chan bool
 }
 
-func NewEventPublisher() *EventPublisher {
-	return &EventPublisher{
+func NewEventPublisher() EventPublisher {
+	return &eventPublisher{
 		subscriptions: make(map[string][]func()),
 		isBusy:        make(chan bool, 1),
 	}
 }
 
-func (this *EventPublisher) Subscribe(name string, subscribeFunc func()) {
+func (this *eventPublisher) Subscribe(name string, subscribeFunc func()) {
 	this.isBusy <- true
 	this.subscriptions[name] = append(this.subscriptions[name], subscribeFunc)
 	<-this.isBusy
 }
 
-func (this *EventPublisher) Publish(name string) {
+func (this *eventPublisher) Publish(name string) {
 	this.isBusy <- true
 	subsciptions := this.subscriptions[name]
 	<-this.isBusy

@@ -10,7 +10,7 @@ import (
 	"github.com/janmbaco/copier"
 	"github.com/janmbaco/go-infrastructure/disk"
 	"github.com/janmbaco/go-infrastructure/errorhandler"
-	"github.com/janmbaco/go-infrastructure/event"
+	"github.com/janmbaco/go-infrastructure/events"
 )
 
 const maxTries = 10
@@ -22,7 +22,7 @@ type FileConfigHandler struct {
 }
 
 func NewFileConfigHandler(filePath string) *FileConfigHandler {
-	return &FileConfigHandler{filePath: filePath, ConfigSubscriber: &ConfigSubscriber{eventPublisher: event.NewEventPublisher()}}
+	return &FileConfigHandler{filePath: filePath, ConfigSubscriber: &ConfigSubscriber{eventPublisher: events.NewEventPublisher()}}
 }
 
 func (this *FileConfigHandler) Load(defaults interface{}) {

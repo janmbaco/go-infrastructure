@@ -34,9 +34,7 @@ func TestNewStore(t *testing.T) {
 
 	actions.actionsObject = redux.NewActionObject(actions)
 
-	businessObjectBuilder := redux.NewBusinessObjectBuilder(0)
-
-	businessObjectBuilder.SetActionsObject(actions.actionsObject)
+	businessObjectBuilder := redux.NewBusinessObjectBuilder(0, actions.actionsObject)
 
 	businessObjectBuilder.On(actions.Sumar, Sumar)
 
