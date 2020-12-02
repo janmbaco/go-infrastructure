@@ -18,7 +18,6 @@ type ActionsObject interface {
 	Contains(action Action) bool
 	ContainsByName(actionName string) bool
 	GetActionByName(name string) Action
-	GetNameByAction(action Action) string
 }
 
 type action struct {

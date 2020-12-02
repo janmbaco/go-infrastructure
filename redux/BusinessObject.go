@@ -78,7 +78,7 @@ func (builder *businessObjectBuilder) On(action Action, function interface{}) *b
 	}
 
 	if typeOfState := reflect.TypeOf(builder.initialState); functionType.NumIn() != 2 || functionType.NumOut() != 1 || functionType.In(0) != functionType.Out(0) || functionType.In(0) != typeOfState {
-		panic(fmt.Sprintf("The function for action `%v` must to have the contract func(state `%v`, payload *any) `%v`", builder.actionsObject.GetNameByAction(action), typeOfState.Name(), typeOfState.Name()))
+		panic(fmt.Sprintf("The function for action `%v` must to have the contract func(state `%v`, payload *any) `%v`", action.GetName(), typeOfState.Name(), typeOfState.Name()))
 	}
 
 	action.SetType(functionType.In(1))
@@ -123,7 +123,7 @@ func (builder *businessObjectBuilder) GetBusinessObject() *BusinessObject {
 	panicMessage := strings.Builder{}
 	for _, action := range builder.actionsObject.GetActions() {
 		if _, ok := builder.blf[action]; !ok {
-			panicMessage.WriteString(fmt.Sprintf("The logic for the actionsObject '%v' is not defined!\n", builder.actionsObject.GetNameByAction(action)))
+			panicMessage.WriteString(fmt.Sprintf("The logic for the actionsObject '%v' is not defined!\n", action.GetName()))
 		}
 	}
 
