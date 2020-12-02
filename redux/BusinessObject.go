@@ -9,16 +9,16 @@ import (
 )
 
 type BusinessObject struct {
-	ActionsContainer ActionsContainer
-	Reducer          Reducer
-	StateManager     StateManager
+	ActionsObject ActionsObject
+	Reducer       Reducer
+	StateManager  StateManager
 }
 
 type businessObjectBuilder struct {
-	initialState     interface{}
-	stateManager     StateManager
-	actionsContainer ActionsContainer
-	blf              map[Action]reflect.Value //business logic funcionality
+	initialState  interface{}
+	stateManager  StateManager
+	actionsObject ActionsObject
+	blf           map[Action]reflect.Value //business logic funcionality
 }
 
 func NewBusinessObjectBuilder(initialState interface{}) *businessObjectBuilder {
@@ -41,7 +41,7 @@ func (builder *businessObjectBuilder) SetActionsObject(object ActionsObject) *bu
 		panic("stateManager parameter can't be nil")
 	}
 
-	builder.actionsContainer = NewActionsContainer(object)
+	builder.actionsObject = object
 
 	return builder
 }
@@ -59,7 +59,7 @@ func (builder *businessObjectBuilder) On(action Action, function interface{}) *b
 		panic("The action can`t be nil!")
 	}
 
-	if !builder.actionsContainer.Contains(action) {
+	if !builder.actionsObject.Contains(action) {
 		panic("This action doesn`t belong to this BusinesObject!")
 	}
 
@@ -78,7 +78,7 @@ func (builder *businessObjectBuilder) On(action Action, function interface{}) *b
 	}
 
 	if typeOfState := reflect.TypeOf(builder.initialState); functionType.NumIn() != 2 || functionType.NumOut() != 1 || functionType.In(0) != functionType.Out(0) || functionType.In(0) != typeOfState {
-		panic(fmt.Sprintf("The function for action `%v` must to have the contract func(state `%v`, payload *any) `%v`", builder.actionsContainer.GetNameByAction(action), typeOfState.Name(), typeOfState.Name()))
+		panic(fmt.Sprintf("The function for action `%v` must to have the contract func(state `%v`, payload *any) `%v`", builder.actionsObject.GetNameByAction(action), typeOfState.Name(), typeOfState.Name()))
 	}
 
 	action.SetType(functionType.In(1))
@@ -101,12 +101,12 @@ func (builder *businessObjectBuilder) SetActionsLogicByObject(object interface{}
 		m := rt.Method(i)
 		mt := m.Type
 		if typeOfState := reflect.TypeOf(builder.initialState); mt.NumIn() == 3 && mt.NumOut() == 1 && mt.In(1) == mt.Out(0) && mt.In(1) == typeOfState {
-			if builder.actionsContainer.ContainsByName(m.Name) {
-				action := builder.actionsContainer.GetActionByName(m.Name)
+			if builder.actionsObject.ContainsByName(m.Name) {
+				action := builder.actionsObject.GetActionByName(m.Name)
 				action.SetType(mt.In(2))
 				builder.blf[action] = rv.Method(i)
 			} else {
-				logs.Log.Warning(fmt.Sprintf("The func`%v` in the object `%v` has not a action asociated in the ActionsObject! ActionObject:`%v`", m.Name, rt.String(), builder.actionsContainer.GetActionsNames()))
+				logs.Log.Warning(fmt.Sprintf("The func`%v` in the object `%v` has not a action asociated in the ActionsObject! ActionObject:`%v`", m.Name, rt.String(), builder.actionsObject.GetActionsNames()))
 			}
 
 		}
@@ -116,14 +116,14 @@ func (builder *businessObjectBuilder) SetActionsLogicByObject(object interface{}
 
 func (builder *businessObjectBuilder) GetBusinessObject() *BusinessObject {
 
-	if builder.actionsContainer == nil {
+	if builder.actionsObject == nil {
 		panic("There isn´t any ActionsObject to load to the BusinessObject!")
 	}
 
 	panicMessage := strings.Builder{}
-	for _, action := range builder.actionsContainer.GetActionsObject().GetActions() {
+	for _, action := range builder.actionsObject.GetActions() {
 		if _, ok := builder.blf[action]; !ok {
-			panicMessage.WriteString(fmt.Sprintf("The logic for the actionsContainer '%v' is not defined!\n", builder.actionsContainer.GetNameByAction(action)))
+			panicMessage.WriteString(fmt.Sprintf("The logic for the actionsObject '%v' is not defined!\n", builder.actionsObject.GetNameByAction(action)))
 		}
 	}
 
@@ -149,8 +149,8 @@ func (builder *businessObjectBuilder) GetBusinessObject() *BusinessObject {
 	}
 
 	return &BusinessObject{
-		ActionsContainer: builder.actionsContainer,
-		Reducer:          reducer,
-		StateManager:     builder.stateManager,
+		ActionsObject: builder.actionsObject,
+		Reducer:       reducer,
+		StateManager:  builder.stateManager,
 	}
 }

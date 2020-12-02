@@ -17,11 +17,10 @@ func NewStore(businessObjects ...*BusinessObject) Store {
 	}
 
 	for _, bo := range businessObjects {
-		actionsObject := bo.ActionsContainer.GetActionsObject()
-		if _, ko := newStore.bo[actionsObject]; ko {
+		if _, ko := newStore.bo[bo.ActionsObject]; ko {
 			panic("Cannot add multiple BusinessObject with the same ActionsObject!")
 		}
-		newStore.bo[actionsObject] = bo
+		newStore.bo[bo.ActionsObject] = bo
 	}
 
 	return newStore
@@ -29,7 +28,7 @@ func NewStore(businessObjects ...*BusinessObject) Store {
 
 func (s *store) Dispatch(action Action) {
 	for _, bo := range s.bo {
-		if bo.ActionsContainer.Contains(action) {
+		if bo.ActionsObject.Contains(action) {
 			bo.StateManager.SetState(bo.Reducer.Reduce(bo.StateManager.GetState(), action))
 			break
 		}

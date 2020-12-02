@@ -14,10 +14,6 @@ type Action interface {
 
 type ActionsObject interface {
 	GetActions() []Action
-}
-
-type ActionsContainer interface {
-	GetActionsObject() ActionsObject
 	GetActionsNames() []string
 	Contains(action Action) bool
 	ContainsByName(actionName string) bool
@@ -67,15 +63,51 @@ func (action *action) GetName() string {
 }
 
 type actionObject struct {
-	actions []Action
+	actions      []Action
+	actionsNames []string
+	actionByName map[string]Action
+	nameByAction map[Action]string
 }
 
 func NewActionObject(object interface{}) *actionObject {
-	return &actionObject{getActionsIn(object)}
+	result := &actionObject{
+		actions:      getActionsIn(object),
+		actionsNames: make([]string, 0),
+		actionByName: make(map[string]Action),
+		nameByAction: make(map[Action]string),
+	}
+	for _, b := range result.actions {
+		result.actionsNames = append(result.actionsNames, b.GetName())
+		result.actionByName[b.GetName()] = b
+		result.nameByAction[b] = b.GetName()
+	}
+	return result
 }
 
 func (actionObject *actionObject) GetActions() []Action {
 	return actionObject.actions
+}
+
+func (actionObject *actionObject) Contains(action Action) bool {
+	_, ok := actionObject.nameByAction[action]
+	return ok
+}
+
+func (actionObject *actionObject) GetActionsNames() []string {
+	return actionObject.actionsNames
+}
+
+func (actionObject *actionObject) ContainsByName(actionName string) bool {
+	_, ok := actionObject.actionByName[actionName]
+	return ok
+}
+
+func (actionObject *actionObject) GetActionByName(name string) Action {
+	return actionObject.actionByName[name]
+}
+
+func (actionObject *actionObject) GetNameByAction(action Action) string {
+	return actionObject.nameByAction[action]
 }
 
 func getActionsIn(object interface{}) []Action {
@@ -95,56 +127,7 @@ func getActionsIn(object interface{}) []Action {
 		}
 	}
 	if len(result) == 0 {
-		panic("There isn`t any action on the actionsContainer object!")
+		panic("There isn`t any action on the actionsObject object!")
 	}
 	return result
-}
-
-type actionsContainer struct {
-	actionsObject ActionsObject
-	actionsNames  []string
-	actionByName  map[string]Action
-	nameByAction  map[Action]string
-}
-
-func NewActionsContainer(actionsObject ActionsObject) ActionsContainer {
-
-	result := &actionsContainer{
-		actionsObject: actionsObject,
-		actionsNames:  make([]string, 0),
-		actionByName:  make(map[string]Action),
-		nameByAction:  make(map[Action]string),
-	}
-	for _, b := range actionsObject.GetActions() {
-		result.actionsNames = append(result.actionsNames, b.GetName())
-		result.actionByName[b.GetName()] = b
-		result.nameByAction[b] = b.GetName()
-	}
-	return result
-}
-
-func (aContainer *actionsContainer) GetActionsObject() ActionsObject {
-	return aContainer.actionsObject
-}
-
-func (aContainer *actionsContainer) Contains(action Action) bool {
-	_, ok := aContainer.nameByAction[action]
-	return ok
-}
-
-func (aContainer *actionsContainer) GetActionsNames() []string {
-	return aContainer.actionsNames
-}
-
-func (aContainer *actionsContainer) ContainsByName(actionName string) bool {
-	_, ok := aContainer.actionByName[actionName]
-	return ok
-}
-
-func (aContainer *actionsContainer) GetActionByName(name string) Action {
-	return aContainer.actionByName[name]
-}
-
-func (aContainer *actionsContainer) GetNameByAction(action Action) string {
-	return aContainer.nameByAction[action]
 }
