@@ -7,7 +7,7 @@ import (
 const onModifiedConfigEvent = "onModifiedConfigEvent"
 
 type ConfigSubscriber struct {
-	eventPublisher events.EventPublisher
+	eventPublisher events.Publisher
 }
 
 func (this *ConfigSubscriber) OnModifiedConfigSubscriber(subscribeFunc func()) {

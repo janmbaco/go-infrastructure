@@ -22,7 +22,7 @@ type FileConfigHandler struct {
 }
 
 func NewFileConfigHandler(filePath string) *FileConfigHandler {
-	return &FileConfigHandler{filePath: filePath, ConfigSubscriber: &ConfigSubscriber{eventPublisher: events.NewEventPublisher()}}
+	return &FileConfigHandler{filePath: filePath, ConfigSubscriber: &ConfigSubscriber{eventPublisher: events.NewPublisher()}}
 }
 
 func (this *FileConfigHandler) Load(defaults interface{}) {
