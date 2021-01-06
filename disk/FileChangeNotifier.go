@@ -23,7 +23,7 @@ func NewFileChangedNotifier(file string) *FileChangedNotifier {
 	return &FileChangedNotifier{file: file, watcher: watcher, eventPublisher: events.NewPublisher(), isSubscribing: make(chan bool, 1)}
 }
 
-func (this *FileChangedNotifier) Subscribe(subscribeFunc func()) {
+func (this *FileChangedNotifier) Subscribe(subscribeFunc *func()) {
 	this.isSubscribing <- true
 	this.eventPublisher.Subscribe(onFileChangedEvent, subscribeFunc)
 	if !this.isWatchingFile {

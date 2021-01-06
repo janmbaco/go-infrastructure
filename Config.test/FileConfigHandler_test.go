@@ -22,12 +22,13 @@ func TestNewFileConfigHandler(t *testing.T) {
 	configHandler.Load(myConfig)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	configHandler.OnModifiedConfigSubscriber(func() {
+	onModifiedConfigFunc := func() {
 		if myConfig.Options != "other options" {
 			t.Error("Options does not changed")
 		}
 		wg.Done()
-	})
+	}
+	configHandler.OnModifiedConfigSubscriber(&onModifiedConfigFunc)
 	otherCofnig := &config{
 		Options: "other options",
 	}

@@ -30,12 +30,13 @@ type (
 	ConfigureListenerFunc func(serverSetter *ServerSetter)
 
 	listener struct {
-		configureFunc   ConfigureListenerFunc
-		setProtobufFunc SetProtobufFunc
-		reStart         bool
-		serverSetter    *ServerSetter
-		httpServer      *http.Server
-		grpcServer      *grpc.Server
+		configureFunc        ConfigureListenerFunc
+		setProtobufFunc      SetProtobufFunc
+		reStart              bool
+		serverSetter         *ServerSetter
+		httpServer           *http.Server
+		grpcServer           *grpc.Server
+		onModifiedConfigFunc func()
 	}
 )
 
@@ -49,7 +50,10 @@ func NewListener(configHandler config.ConfigHandler, configureFunc ConfigureList
 		configureFunc: configureFunc,
 		serverSetter:  &ServerSetter{},
 	}
-	configHandler.OnModifiedConfigSubscriber(listener.Restart)
+	listener.onModifiedConfigFunc = func() {
+		listener.Restart()
+	}
+	configHandler.OnModifiedConfigSubscriber(&listener.onModifiedConfigFunc)
 	return listener
 }
 

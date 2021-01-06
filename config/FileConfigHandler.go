@@ -17,8 +17,9 @@ const maxTries = 10
 
 type FileConfigHandler struct {
 	*ConfigSubscriber
-	filePath   string
-	dataconfig interface{}
+	filePath             string
+	dataconfig           interface{}
+	onModifiedConfigFile func()
 }
 
 func NewFileConfigHandler(filePath string) *FileConfigHandler {
@@ -30,7 +31,18 @@ func (this *FileConfigHandler) Load(defaults interface{}) {
 	if !disk.ExistsPath(this.filePath) {
 		this.writeFile()
 	}
-	disk.NewFileChangedNotifier(this.filePath).Subscribe(this.onModifiedConfigFile)
+	this.onModifiedConfigFile = func() {
+		errorhandler.TryCatchError(
+			func() {
+				this.readFile()
+				this.onModifiedConfigPublish()
+			},
+			func(err error) {
+				this.writeFile()
+			})
+	}
+
+	disk.NewFileChangedNotifier(this.filePath).Subscribe(&this.onModifiedConfigFile)
 	this.readFile()
 }
 
@@ -55,15 +67,4 @@ func (this *FileConfigHandler) writeFile() {
 	errorhandler.TryPanic(err)
 	_ = os.Mkdir(filepath.Dir(this.filePath), 0666)
 	errorhandler.TryPanic(disk.CreateFile(this.filePath, content))
-}
-
-func (this *FileConfigHandler) onModifiedConfigFile() {
-	errorhandler.TryCatchError(
-		func() {
-			this.readFile()
-			this.onModifiedConfigPublish()
-		},
-		func(err error) {
-			this.writeFile()
-		})
 }

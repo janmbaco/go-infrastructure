@@ -10,7 +10,7 @@ type ConfigSubscriber struct {
 	eventPublisher events.Publisher
 }
 
-func (this *ConfigSubscriber) OnModifiedConfigSubscriber(subscribeFunc func()) {
+func (this *ConfigSubscriber) OnModifiedConfigSubscriber(subscribeFunc *func()) {
 	this.eventPublisher.Subscribe(onModifiedConfigEvent, subscribeFunc)
 }
 
