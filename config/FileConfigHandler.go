@@ -15,8 +15,7 @@ import (
 
 const maxTries = 10
 
-// FileConfigHandler  is the object responsible for loading the configuration from a file and observing its changes
-type FileConfigHandler struct {
+type fileConfigHandler struct {
 	*configSubscriber
 	filePath             string
 	dataconfig           interface{}
@@ -25,13 +24,13 @@ type FileConfigHandler struct {
 	isSubscribed         bool
 }
 
-// NewFileConfigHandler returns a FielConfigHandler
-func NewFileConfigHandler(filePath string) *FileConfigHandler {
-	return &FileConfigHandler{filePath: filePath, configSubscriber: &configSubscriber{eventPublisher: events.NewPublisher()}, fileChangeNotifier: disk.NewFileChangedNotifier(filePath)}
+// NewFileConfigHandler returns a ConfigHandler
+func NewFileConfigHandler(filePath string) ConfigHandler {
+	return &fileConfigHandler{filePath: filePath, configSubscriber: &configSubscriber{eventPublisher: events.NewPublisher()}, fileChangeNotifier: disk.NewFileChangedNotifier(filePath)}
 }
 
 // Load loads the default configuration if the file not exits.
-func (fileConfigHandler *FileConfigHandler) Load(defaults interface{}) {
+func (fileConfigHandler *fileConfigHandler) Load(defaults interface{}) {
 	fileConfigHandler.dataconfig = defaults
 	if !disk.ExistsPath(fileConfigHandler.filePath) {
 		fileConfigHandler.writeFile()
@@ -55,7 +54,7 @@ func (fileConfigHandler *FileConfigHandler) Load(defaults interface{}) {
 	fileConfigHandler.readFile()
 }
 
-func (fileConfigHandler *FileConfigHandler) readFile() {
+func (fileConfigHandler *fileConfigHandler) readFile() {
 	var content []byte
 	var err error
 	try := 1
@@ -69,7 +68,7 @@ func (fileConfigHandler *FileConfigHandler) readFile() {
 	errorhandler.TryPanic(copier.Copy(fileConfigHandler.dataconfig, ret))
 }
 
-func (fileConfigHandler *FileConfigHandler) writeFile() {
+func (fileConfigHandler *fileConfigHandler) writeFile() {
 	var content []byte
 	var err error
 	content, err = json.Marshal(fileConfigHandler.dataconfig)

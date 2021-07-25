@@ -11,7 +11,7 @@ const modifyingEvent = "modifyingEvent"
 // ConfigSubscriber defines an object that is capable of subscribing to changes to a configuration
 type ConfigSubscriber interface {
 	OnModifiedConfigSubscriber(subscribeFunc func())
-	OnModifyingConfigSubscriber(subscribeFunc func() bool)
+	OnModifyingConfigSubscriber(subscribeFunc func())
 }
 
 type configSubscriber struct {
