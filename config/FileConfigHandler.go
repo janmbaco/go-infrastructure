@@ -19,6 +19,7 @@ type fileConfigHandler struct {
 	*configSubscriber
 	filePath             string
 	dataconfig           interface{}
+	fromFile             interface{}
 	onModifiedConfigFile func()
 	fileChangeNotifier   disk.FileChangedNotifier
 	isSubscribed         bool
@@ -39,9 +40,10 @@ func (fileConfigHandler *fileConfigHandler) Load(defaults interface{}) {
 		errorhandler.TryCatchError(
 			func() {
 				fileConfigHandler.readFile()
-				if fileConfigHandler.onModifyingConfigPublish() {
+				if fileConfigHandler.onModifyingConfigPublish(fileConfigHandler.fromFile) {
 					panic(fileConfigHandler.cancelMessage)
 				}
+				errorhandler.TryPanic(copier.Copy(fileConfigHandler.dataconfig, fileConfigHandler.fromFile))
 				fileConfigHandler.onModifiedConfigPublish()
 			},
 			func(err error) {
@@ -52,6 +54,7 @@ func (fileConfigHandler *fileConfigHandler) Load(defaults interface{}) {
 	fileConfigHandler.fileChangeNotifier.Subscribe(&fileConfigHandler.onModifiedConfigFile)
 	fileConfigHandler.isSubscribed = true
 	fileConfigHandler.readFile()
+	errorhandler.TryPanic(copier.Copy(fileConfigHandler.dataconfig, fileConfigHandler.fromFile))
 }
 
 func (fileConfigHandler *fileConfigHandler) readFile() {
@@ -65,7 +68,10 @@ func (fileConfigHandler *fileConfigHandler) readFile() {
 	}
 	ret := reflect.New(reflect.TypeOf(fileConfigHandler.dataconfig)).Interface()
 	errorhandler.TryPanic(json.Unmarshal(content, ret))
-	errorhandler.TryPanic(copier.Copy(fileConfigHandler.dataconfig, ret))
+	if fileConfigHandler.fromFile == nil {
+		fileConfigHandler.fromFile = reflect.New(reflect.TypeOf(fileConfigHandler.dataconfig).Elem()).Interface()
+	}
+	errorhandler.TryPanic(copier.Copy(fileConfigHandler.fromFile, ret))
 }
 
 func (fileConfigHandler *fileConfigHandler) writeFile() {

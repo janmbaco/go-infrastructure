@@ -26,6 +26,7 @@ func TestNewFileConfigHandler(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	onModifiedConfigFunc := func() {
+		t.Log(myConfig.Options)
 		if myConfig.Options != "other options" {
 			t.Log("Options does not changed")
 		} else {
@@ -33,8 +34,9 @@ func TestNewFileConfigHandler(t *testing.T) {
 		}
 		wg.Done()
 	}
-	configHandler.OnModifyingConfigSubscriber(func() {
-		if myConfig.Options != "other options" {
+	configHandler.OnModifyingConfigSubscriber(func(newConfig interface{}) {
+		t.Log(newConfig.(*config).Options)
+		if newConfig.(*config).Options != "other options" {
 			t.Log("No puedo aceptarlo")
 			go func() {
 				<-time.After(10 * time.Millisecond)
