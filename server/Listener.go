@@ -53,7 +53,7 @@ func NewListener(configHandler config.ConfigHandler, configureFunc ConfigureList
 	listener.onModifiedConfigFunc = func() {
 		listener.Restart()
 	}
-	configHandler.OnModifiedConfigSubscriber(&listener.onModifiedConfigFunc)
+	configHandler.OnModifiedConfigSubscriber(listener.onModifiedConfigFunc)
 	return listener
 }
 
