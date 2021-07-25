@@ -1,4 +1,5 @@
 # Go Infrastructure
+[![Go Report Card](https://goreportcard.com/badge/github.com/janmbaco/go-infrastructure)](https://goreportcard.com/report/github.com/janmbaco/go-infrastructure)
 This is an infrastructure project in go that serves the Go-ReverseProxy-SSL and Saprocate projects, it also aims to be a common base for projects in go:
 
 ### Package: github.com/janmbaco/go-infrastructure/logs
