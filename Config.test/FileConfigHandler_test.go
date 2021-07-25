@@ -56,7 +56,7 @@ func TestNewFileConfigHandler(t *testing.T) {
 	lotroCofnig := &config{
 		Options: "no another options",
 	}
-	lcontent, lerr := json.Marshal(lotroCofnig)
+	lcontent, lerr := json.MarshalIndent(lotroCofnig, "", "\t")
 	errorhandler.TryPanic(lerr)
 	errorhandler.TryPanic(disk.CreateFile("config.json", lcontent))
 	wg.Wait()
@@ -65,7 +65,7 @@ func TestNewFileConfigHandler(t *testing.T) {
 	otherCofnig := &config{
 		Options: "other options",
 	}
-	content, err := json.Marshal(otherCofnig)
+	content, err := json.MarshalIndent(otherCofnig, "", "\t")
 	errorhandler.TryPanic(err)
 	errorhandler.TryPanic(disk.CreateFile("config.json", content))
 	wg.Wait()

@@ -77,7 +77,7 @@ func (fileConfigHandler *fileConfigHandler) readFile() {
 func (fileConfigHandler *fileConfigHandler) writeFile() {
 	var content []byte
 	var err error
-	content, err = json.Marshal(fileConfigHandler.dataconfig)
+	content, err = json.MarshalIndent(fileConfigHandler.dataconfig, "", "\t")
 	errorhandler.TryPanic(err)
 	_ = os.Mkdir(filepath.Dir(fileConfigHandler.filePath), 0666)
 	errorhandler.TryPanic(disk.CreateFile(fileConfigHandler.filePath, content))
