@@ -15,56 +15,65 @@ import (
 
 const maxTries = 10
 
+// FileConfigHandler  is the object responsible for loading the configuration from a file and observing its changes
 type FileConfigHandler struct {
-	*ConfigSubscriber
+	*configSubscriber
 	filePath             string
 	dataconfig           interface{}
 	onModifiedConfigFile func()
+	fileChangeNotifier   disk.FileChangedNotifier
+	isSubscribed         bool
 }
 
+// NewFileConfigHandler returns a FielConfigHandler
 func NewFileConfigHandler(filePath string) *FileConfigHandler {
-	return &FileConfigHandler{filePath: filePath, ConfigSubscriber: &ConfigSubscriber{eventPublisher: events.NewPublisher()}}
+	return &FileConfigHandler{filePath: filePath, configSubscriber: &configSubscriber{eventPublisher: events.NewPublisher()}, fileChangeNotifier: disk.NewFileChangedNotifier(filePath)}
 }
 
-func (this *FileConfigHandler) Load(defaults interface{}) {
-	this.dataconfig = defaults
-	if !disk.ExistsPath(this.filePath) {
-		this.writeFile()
+// Load loads the default configuration if the file not exits.
+func (fileConfigHandler *FileConfigHandler) Load(defaults interface{}) {
+	fileConfigHandler.dataconfig = defaults
+	if !disk.ExistsPath(fileConfigHandler.filePath) {
+		fileConfigHandler.writeFile()
 	}
-	this.onModifiedConfigFile = func() {
+	fileConfigHandler.onModifiedConfigFile = func() {
 		errorhandler.TryCatchError(
 			func() {
-				this.readFile()
-				this.onModifiedConfigPublish()
+				fileConfigHandler.readFile()
+				if fileConfigHandler.onModifyingConfigPublish() {
+					panic(fileConfigHandler.cancelMessage)
+				}
+				fileConfigHandler.onModifiedConfigPublish()
 			},
 			func(err error) {
-				this.writeFile()
+				_ = disk.Copy(fileConfigHandler.filePath, fileConfigHandler.filePath+".badconfig")
+				fileConfigHandler.writeFile()
 			})
 	}
-
-	disk.NewFileChangedNotifier(this.filePath).Subscribe(&this.onModifiedConfigFile)
-	this.readFile()
+	fileConfigHandler.fileChangeNotifier.Subscribe(&fileConfigHandler.onModifiedConfigFile)
+	fileConfigHandler.isSubscribed = true
+	fileConfigHandler.readFile()
 }
 
-func (this *FileConfigHandler) readFile() {
+func (fileConfigHandler *FileConfigHandler) readFile() {
 	var content []byte
 	var err error
 	try := 1
-	for len(content) == 0 || try < maxTries {
-		content, err = ioutil.ReadFile(this.filePath)
+	for len(content) == 0 && try < maxTries {
+		content, err = ioutil.ReadFile(fileConfigHandler.filePath)
 		errorhandler.TryPanic(err)
 		try++
 	}
-	ret := reflect.New(reflect.TypeOf(this.dataconfig)).Interface()
+	ret := reflect.New(reflect.TypeOf(fileConfigHandler.dataconfig)).Interface()
 	errorhandler.TryPanic(json.Unmarshal(content, ret))
-	errorhandler.TryPanic(copier.Copy(this.dataconfig, ret))
+	errorhandler.TryPanic(copier.Copy(fileConfigHandler.dataconfig, ret))
 }
 
-func (this *FileConfigHandler) writeFile() {
+func (fileConfigHandler *FileConfigHandler) writeFile() {
 	var content []byte
 	var err error
-	content, err = json.Marshal(this.dataconfig)
+	content, err = json.Marshal(fileConfigHandler.dataconfig)
 	errorhandler.TryPanic(err)
-	_ = os.Mkdir(filepath.Dir(this.filePath), 0666)
-	errorhandler.TryPanic(disk.CreateFile(this.filePath, content))
+	_ = os.Mkdir(filepath.Dir(fileConfigHandler.filePath), 0666)
+	errorhandler.TryPanic(disk.CreateFile(fileConfigHandler.filePath, content))
 }

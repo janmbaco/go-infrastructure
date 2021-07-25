@@ -8,37 +8,51 @@ import (
 
 const onFileChangedEvent = "onFileChangedEvent"
 
-type FileChangedNotifier struct {
+// FileChangedNotifier defines and object that observe changes of a file
+type FileChangedNotifier interface {
+	Subscribe(subscribeFunc *func())
+}
+
+type fileChangedNotifier struct {
 	file           string
 	eventPublisher events.Publisher
 	isWatchingFile bool
 	watcher        *fsnotify.Watcher
-	isSubscribing  chan bool
+	isBusy         chan bool
+	isPublishing   bool
 }
 
-func NewFileChangedNotifier(file string) *FileChangedNotifier {
+// NewFileChangedNotifier returns a FileChangedNotifier
+func NewFileChangedNotifier(file string) FileChangedNotifier {
 	watcher, err := fsnotify.NewWatcher()
 	errorhandler.TryPanic(err)
-	errorhandler.TryPanic(watcher.Add(file))
-	return &FileChangedNotifier{file: file, watcher: watcher, eventPublisher: events.NewPublisher(), isSubscribing: make(chan bool, 1)}
+	return &fileChangedNotifier{file: file, watcher: watcher, eventPublisher: events.NewPublisher(), isPublishing: false, isBusy: make(chan bool, 1)}
 }
 
-func (this *FileChangedNotifier) Subscribe(subscribeFunc *func()) {
-	this.isSubscribing <- true
+// Subscribe subscribes a functio to observe changes of a file
+func (this *fileChangedNotifier) Subscribe(subscribeFunc *func()) {
 	this.eventPublisher.Subscribe(onFileChangedEvent, subscribeFunc)
 	if !this.isWatchingFile {
+		errorhandler.TryPanic(this.watcher.Add(this.file))
 		go this.watchFile()
 		this.isWatchingFile = true
 	}
-	<-this.isSubscribing
 }
 
-func (this *FileChangedNotifier) publish() {
-	this.eventPublisher.Publish(onFileChangedEvent)
+func (this *fileChangedNotifier) publish(isPublising bool) {
+	this.isBusy <- true
+	if !isPublising {
+		this.isPublishing = true
+		this.eventPublisher.Publish(onFileChangedEvent)
+		this.isPublishing = false
+	}
+	<-this.isBusy
 }
 
-func (this *FileChangedNotifier) watchFile() {
-	for range this.watcher.Events {
-		this.publish()
+func (this *fileChangedNotifier) watchFile() {
+	for evt := range this.watcher.Events {
+		if evt.Op == fsnotify.Write {
+			go this.publish(this.isPublishing)
+		}
 	}
 }

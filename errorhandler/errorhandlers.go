@@ -3,7 +3,7 @@ package errorhandler
 import (
 	"errors"
 	"fmt"
-	"github.com/janmbaco/go-infrastructure/logs"
+	"reflect"
 	"runtime"
 	"strings"
 )
@@ -40,7 +40,6 @@ func deferTryError(shouldContinue bool, errorFunc func(error), finallyFunc func(
 		case error:
 			text = re.(error).Error()
 		}
-		logs.Log.Error(text)
 		if errorFunc != nil {
 			errorFunc(errors.New(text))
 		} else if !shouldContinue {
@@ -52,7 +51,6 @@ func deferTryError(shouldContinue bool, errorFunc func(error), finallyFunc func(
 
 func TryPanic(err error) {
 	if err != nil {
-		logs.Log.Error(err.Error())
 		panic(err)
 	}
 }
@@ -79,7 +77,7 @@ func CheckNilParameter(parameters map[string]interface{}) {
 	funcName := runtime.FuncForPC(pc[0]).Name()
 	panicMessage[0] = fmt.Sprintf("Func `%v`", funcName[strings.LastIndexByte(funcName, '/')+1:])
 	for name, parameter := range parameters {
-		if parameter == nil {
+		if typ := reflect.TypeOf(parameter); typ.Kind() == reflect.Ptr && reflect.ValueOf(parameter).IsNil() {
 			panicMessage = append(panicMessage, fmt.Sprintf("The parameter '%v' can't be nil!", name))
 		}
 	}
