@@ -1,6 +1,7 @@
 package logs
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -19,24 +20,40 @@ const (
 	Fatal
 )
 
-type mylog struct {
+type ErrorLogger interface {
+	PrintError(level LogLevel, err error)
+}
+
+type Logger interface {
+	ErrorLogger
+	Println(level LogLevel, message string)
+	Printlnf(level LogLevel, format string, a ...interface{})
+	Trace(message string)
+	Tracef(format string, a ...interface{})
+	Info(message string)
+	Infof(format string, a ...interface{})
+	Warning(message string)
+	Warningf(format string, a ...interface{})
+	Error(message string)
+	Errorf(format string, a ...interface{})
+	Fatal(message string)
+	Fatalf(format string, a ...interface{})
+	SetConsoleLevel(level LogLevel)
+	SetFileLogLevel(level LogLevel)
+	GetErrorLogger() *log.Logger
+	SetDir(string)
+}
+
+type logger struct {
 	loggers             map[LogLevel]*log.Logger
 	activeConsoleLogger map[LogLevel]bool
 	activeFileLogger    map[LogLevel]bool
-	ErrorLogger         *log.Logger
+	errorLogger         *log.Logger
 	logsDir             string
 }
 
-var Log mylog
-
-func init() {
-
-	Log = mylog{
-		loggers:             make(map[LogLevel]*log.Logger),
-		activeConsoleLogger: setLevel(Trace),
-		activeFileLogger:    setLevel(Trace),
-	}
-
+func NewLogger() Logger {
+	logger := &logger{loggers: make(map[LogLevel]*log.Logger), activeConsoleLogger: setLevel(Trace), activeFileLogger: setLevel(Trace)}
 	createLog := func(level LogLevel, writer io.Writer) *log.Logger {
 		levels := [...]string{
 			"TRACE: ",
@@ -44,42 +61,42 @@ func init() {
 			"WARNING: ",
 			"ERROR: ",
 			"FATAL: "}
-
 		return log.New(writer,
 			levels[level],
 			log.Ldate|log.Ltime)
-
 	}
-
 	registerLogger := func(consoleWriter io.Writer, levels ...LogLevel) {
 		for _, level := range levels {
-			Log.loggers[level] = createLog(level, consoleWriter)
+			logger.loggers[level] = createLog(level, consoleWriter)
 		}
 	}
 
 	registerLogger(os.Stdout, Trace, Info, Warning)
 	registerLogger(os.Stderr, Error, Fatal)
-	Log.ErrorLogger = Log.loggers[Error]
+	logger.errorLogger = logger.loggers[Error]
+
+	return logger
 }
 
-func (l *mylog) SetDir(dir string) {
-	l.logsDir, _ = filepath.Abs(dir)
+func (logger *logger) Printlnf(level LogLevel, format string, a ...interface{}) {
+	logger.Println(level, fmt.Sprintf(format, a...))
 }
 
-func (l *mylog) Println(level LogLevel, message string) {
+func (logger *logger) Println(level LogLevel, message string) {
 	var writers []io.Writer
-	if l.activeConsoleLogger[level] {
+	if logger.activeConsoleLogger[level] {
 		if level < Error {
 			writers = append(writers, os.Stdout)
 		} else {
 			writers = append(writers, os.Stderr)
 		}
 	}
-	if len(l.logsDir) > 0 && l.activeFileLogger[level] {
+
+	if len(logger.logsDir) > 0 && logger.activeFileLogger[level] {
 		year, month, day := time.Now().Date()
 		execFile := filepath.Base(os.Args[0])
 
-		logFile := l.logsDir + "/" + execFile + "-" + strconv.Itoa(year) + strconv.Itoa(int(month)) + strconv.Itoa(day) + ".log"
+		logFile := logger.logsDir + "/" + execFile + "-" + strconv.Itoa(year) + strconv.Itoa(int(month)) + strconv.Itoa(day) + ".log"
 		_ = os.MkdirAll(filepath.Dir(logFile), 0666)
 		osFile, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
@@ -93,58 +110,73 @@ func (l *mylog) Println(level LogLevel, message string) {
 
 	if writers != nil {
 		multiWriter := io.MultiWriter(writers...)
-		l.loggers[level].SetOutput(multiWriter)
+		logger.loggers[level].SetOutput(multiWriter)
 
 		if level == Fatal {
-			l.loggers[level].Fatalln(message)
+			logger.loggers[level].Fatalln(message)
 		} else {
-			l.loggers[level].Println(message)
+			logger.loggers[level].Println(message)
 		}
 	}
 }
 
-func (l *mylog) logError(level LogLevel, err error) {
-	if err != nil {
-		l.Println(level, err.Error())
-	}
+func (logger *logger) SetDir(directory string) {
+	logger.logsDir = directory
 }
 
-func (l *mylog) Trace(message string) {
-	l.Println(Trace, message)
+func (logger *logger) SetConsoleLevel(level LogLevel) {
+	logger.activeConsoleLogger = setLevel(level)
 }
 
-func (l *mylog) TryTrace(err error) {
-	l.logError(Trace, err)
+func (logger *logger) SetFileLogLevel(level LogLevel) {
+	logger.activeFileLogger = setLevel(level)
 }
 
-func (l *mylog) Info(message string) {
-	l.Println(Info, message)
+func (logger *logger) GetErrorLogger() *log.Logger {
+	return logger.errorLogger
 }
 
-func (l *mylog) TryInfo(err error) {
-	l.logError(Info, err)
+func (logger *logger) PrintError(level LogLevel, err error) {
+	logger.Println(level, err.Error())
 }
 
-func (l *mylog) Warning(message string) {
-	l.Println(Warning, message)
+func (logger *logger) Trace(message string) {
+	logger.Println(Trace, message)
 }
 
-func (l *mylog) TryWarning(err error) {
-	l.logError(Warning, err)
+func (logger *logger) Tracef(format string, a ...interface{}) {
+	logger.Printlnf(Trace, format, a...)
 }
 
-func (l *mylog) Error(message string) {
-	l.Println(Error, message)
+func (logger *logger) Info(message string) {
+	logger.Println(Info, message)
 }
-func (l *mylog) TryError(err error) {
-	l.logError(Error, err)
+func (logger *logger) Infof(format string, a ...interface{}) {
+	logger.Printlnf(Info, format, a...)
 }
 
-func (l *mylog) Fatal(message string) {
-	l.Println(Fatal, message)
+func (logger *logger) Warning(message string) {
+	logger.Println(Warning, message)
 }
-func (l *mylog) TryFatal(err error) {
-	l.logError(Fatal, err)
+
+func (logger *logger) Warningf(format string, a ...interface{}) {
+	logger.Printlnf(Warning, format, a...)
+}
+
+func (logger *logger) Error(message string) {
+	logger.Println(Error, message)
+}
+
+func (logger *logger) Errorf(format string, a ...interface{}) {
+	logger.Printlnf(Error, format, a...)
+}
+
+func (logger *logger) Fatal(message string) {
+	logger.Println(Fatal, message)
+}
+
+func (logger *logger) Fatalf(format string, a ...interface{}) {
+	logger.Printlnf(Fatal, format, a...)
 }
 
 func setLevel(level LogLevel) map[LogLevel]bool {
@@ -156,12 +188,4 @@ func setLevel(level LogLevel) map[LogLevel]bool {
 		}
 	}
 	return loggersActives
-}
-
-func (l *mylog) SetConsoleLevel(level LogLevel) {
-	l.activeConsoleLogger = setLevel(level)
-}
-
-func (l *mylog) SetFileLogLevel(level LogLevel) {
-	l.activeFileLogger = setLevel(level)
 }
