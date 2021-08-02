@@ -2,6 +2,7 @@ package logs
 
 import (
 	"fmt"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"io"
 	"log"
 	"os"
@@ -137,6 +138,7 @@ func (logger *logger) GetErrorLogger() *log.Logger {
 }
 
 func (logger *logger) PrintError(level LogLevel, err error) {
+	errorschecker.CheckNilParameter(map[string]interface{}{"err": err})
 	logger.Println(level, err.Error())
 }
 

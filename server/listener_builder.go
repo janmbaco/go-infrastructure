@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/logs"
 )
 
@@ -24,15 +25,18 @@ type listenerBuilder struct {
 }
 
 func NewListenerBuilder(configHandler configuration.ConfigHandler, logger logs.Logger, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower) ListenerBuilder {
+	errorschecker.CheckNilParameter(map[string]interface{}{"configHandler": configHandler, "logger": logger, "errorCatcher": errorCatcher, "errorThrower": errorThrower})
 	return &listenerBuilder{configHandler: configHandler, logger: logger, errorCatcher: errorCatcher, errorThrower: errorThrower, errorDefer: errors.NewErrorDefer(errorThrower, &listenerBuilderErrorPipe{})}
 }
 
 func (listenerBuilder *listenerBuilder) SetBootstrapper(bootstrapperFunc BootstrapperFunc) ListenerBuilder {
+	errorschecker.CheckNilParameter(map[string]interface{}{"bootstrapperFunc": bootstrapperFunc})
 	listenerBuilder.bootstrapperFunc = bootstrapperFunc
 	return listenerBuilder
 }
 
 func (listenerBuilder *listenerBuilder) SetGrpcDefinitions(grpcDefinitionsFunc GrpcDefinitionsFunc) ListenerBuilder {
+	errorschecker.CheckNilParameter(map[string]interface{}{"grpcDefinitionsFunc": grpcDefinitionsFunc})
 	listenerBuilder.grpcDefinitionsFunc = grpcDefinitionsFunc
 	return listenerBuilder
 }

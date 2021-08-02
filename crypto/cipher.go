@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/logs"
 )
 
@@ -20,12 +21,12 @@ type cipherImp struct {
 
 // NewCipher returns a Cipher object
 func NewCipher(key []byte, logger logs.Logger, thrower errors.ErrorThrower) Cipher {
-	errors.CheckNilParameter(map[string]interface{}{"thrower": thrower})
+	errorschecker.CheckNilParameter(map[string]interface{}{"thrower": thrower})
 	block, err := aes.NewCipher(key)
 	errorCatcher := errors.NewErrorCatcher(logger)
-	errors.TryPanic(err)
+	errorschecker.TryPanic(err)
 	aead, err := cipher.NewGCM(block)
-	errors.TryPanic(err)
+	errorschecker.TryPanic(err)
 	return &cipherImp{
 		aead:         aead,
 		errorCatcher: errorCatcher,
@@ -46,6 +47,6 @@ func (c *cipherImp) Decrypt(value []byte) []byte {
 	nonceSize := c.aead.NonceSize()
 	nonce, cipherValue := value[:nonceSize], value[nonceSize:]
 	plainValue, err := c.aead.Open(nil, nonce, cipherValue, nil)
-	errors.TryPanic(err)
+	errorschecker.TryPanic(err)
 	return plainValue
 }

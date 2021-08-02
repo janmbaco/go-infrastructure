@@ -3,6 +3,7 @@ package disk
 import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/eventsmanager"
 )
 
@@ -22,20 +23,20 @@ type (
 )
 
 // NewFileChangedNotifier returns a FileChangedNotifier
-func NewFileChangedNotifier(file string, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower) FileChangedNotifier {
-	errors.CheckNilParameter(map[string]interface{}{"errorThrower": errorThrower})
+func NewFileChangedNotifier(filePath string, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower) FileChangedNotifier {
+	errorschecker.CheckNilParameter(map[string]interface{}{"errorThrower": errorThrower})
 	watcher, err := fsnotify.NewWatcher()
-	errors.TryPanic(err)
+	errorschecker.TryPanic(err)
 	subscriptions := eventsmanager.NewSubscriptions(errorThrower)
-	return &fileChangedNotifier{file: file, watcher: watcher, subscriptions: subscriptions, eventPublisher: eventsmanager.NewPublisher(subscriptions, errorCatcher)}
+	return &fileChangedNotifier{file: filePath, watcher: watcher, subscriptions: subscriptions, eventPublisher: eventsmanager.NewPublisher(subscriptions, errorCatcher)}
 }
 
 // Subscribe subscribes a functio to observe changes of a file
 func (f *fileChangedNotifier) Subscribe(subscribeFunc func()) {
-	errors.CheckNilParameter(map[string]interface{}{"subscribeFunc": subscribeFunc})
+	errorschecker.CheckNilParameter(map[string]interface{}{"subscribeFunc": subscribeFunc})
 	f.subscriptions.Add(&fileChangedEvent{}, subscribeFunc)
 	if !f.isWatchingFile {
-		errors.TryPanic(f.watcher.Add(f.file))
+		errorschecker.TryPanic(f.watcher.Add(f.file))
 		go f.watchFile()
 		f.isWatchingFile = true
 	}

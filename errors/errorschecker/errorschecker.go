@@ -1,4 +1,4 @@
-package errors
+package errorschecker
 
 import (
 	"fmt"
