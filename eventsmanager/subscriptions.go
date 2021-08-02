@@ -2,6 +2,7 @@ package eventsmanager
 
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"reflect"
 	"sync"
 )
@@ -22,7 +23,7 @@ func NewSubscriptions(thrower errors.ErrorThrower) Subscriptions {
 }
 
 func (s *subscriptions) Add(event EventObject, subscribeFunc interface{}) {
-	errors.CheckNilParameter(map[string]interface{}{"event": event, "subscribeFunc": subscribeFunc})
+	errorschecker.CheckNilParameter(map[string]interface{}{"event": event, "subscribeFunc": subscribeFunc})
 	defer s.errorDefer.TryThrowError()
 	functionValue := reflect.Indirect(reflect.ValueOf(subscribeFunc))
 	functionType := reflect.Indirect(reflect.ValueOf(subscribeFunc)).Type()
@@ -49,7 +50,7 @@ func (s *subscriptions) Add(event EventObject, subscribeFunc interface{}) {
 }
 
 func (s *subscriptions) Remove(event EventObject, subscribeFunc interface{}) {
-	errors.CheckNilParameter(map[string]interface{}{"event": event, "subscribeFunc": subscribeFunc})
+	errorschecker.CheckNilParameter(map[string]interface{}{"event": event, "subscribeFunc": subscribeFunc})
 	defer s.errorDefer.TryThrowError()
 	pointer := reflect.ValueOf(subscribeFunc).Pointer()
 	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
@@ -72,7 +73,7 @@ func (s *subscriptions) Remove(event EventObject, subscribeFunc interface{}) {
 }
 
 func (s *subscriptions) GetAlls(event EventObject) []reflect.Value {
-	errors.CheckNilParameter(map[string]interface{}{"event": event})
+	errorschecker.CheckNilParameter(map[string]interface{}{"event": event})
 	result := make([]reflect.Value, 0)
 	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
 	if subscriptions, isContained := s.events.Load(typ); isContained {

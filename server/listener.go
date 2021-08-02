@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"net"
@@ -59,7 +60,7 @@ const (
 )
 
 func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower, bootstrapperFunc BootstrapperFunc, grpdDefinitionsFunc GrpcDefinitionsFunc) Listener {
-	errors.CheckNilParameter(map[string]interface{}{"configHandler": configHandler, "logger": logger, "errorCatcher": errorCatcher, "errorThrower": errorThrower, "bootstrapperFunc": bootstrapperFunc})
+	errorschecker.CheckNilParameter(map[string]interface{}{"configHandler": configHandler, "logger": logger, "errorCatcher": errorCatcher, "errorThrower": errorThrower, "bootstrapperFunc": bootstrapperFunc})
 	listener := &listener{
 		configHandler:       configHandler,
 		logger:              logger,
@@ -97,15 +98,15 @@ func (l *listener) Start() {
 					switch l.serverSetter.ServerType {
 					case HttpServer:
 						if l.serverSetter.TLSConfig != nil {
-							errors.TryPanic(l.httpServer.ListenAndServeTLS("", ""))
+							errorschecker.TryPanic(l.httpServer.ListenAndServeTLS("", ""))
 						} else {
-							errors.TryPanic(l.httpServer.ListenAndServe())
+							errorschecker.TryPanic(l.httpServer.ListenAndServe())
 						}
 					case GRpcSever:
 						lis, err := net.Listen("tcp", l.serverSetter.Addr)
-						errors.TryPanic(err)
+						errorschecker.TryPanic(err)
 						l.grpcDefinitionsFunc(l.grpcServer)
-						errors.TryPanic(l.grpcServer.Serve(lis))
+						errorschecker.TryPanic(l.grpcServer.Serve(lis))
 					}
 				}, func(err error) {
 					if err.Error() != "http: Server closed" {
@@ -140,7 +141,7 @@ func (l *listener) Stop() {
 func (l *listener) stopServer() {
 	switch l.serverSetter.ServerType {
 	case HttpServer:
-		errors.TryPanic(l.httpServer.Shutdown(context.Background()))
+		errorschecker.TryPanic(l.httpServer.Shutdown(context.Background()))
 	case GRpcSever:
 		l.grpcServer.GracefulStop()
 	}

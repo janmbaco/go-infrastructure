@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/configuration/events"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ type fileConfigHandler struct {
 
 // NewFileConfigHandler returns a ConfigHandler
 func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower) configuration.ConfigHandler {
-	errors.CheckNilParameter(map[string]interface{}{"defaults": defaults, "errorCatcher": errorCatcher, "errorThrower": errorThrower})
+	errorschecker.CheckNilParameter(map[string]interface{}{"defaults": defaults, "errorCatcher": errorCatcher, "errorThrower": errorThrower})
 
 	subscriptions := eventsmanager.NewSubscriptions(errorThrower)
 	errorHandler := errors.NewErrorDefer(errorThrower, &fileConfigHandleErrorPipe{})
@@ -55,7 +56,7 @@ func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher er
 		errorDefer:                       errorHandler,
 	}
 	fileConfigHandler.dataconfig = reflect.New(reflect.TypeOf(defaults).Elem()).Interface()
-	errors.TryPanic(copier.Copy(fileConfigHandler.dataconfig, defaults))
+	errorschecker.TryPanic(copier.Copy(fileConfigHandler.dataconfig, defaults))
 	if !disk.ExistsPath(fileConfigHandler.filePath) {
 		fileConfigHandler.writeFile()
 	}
@@ -66,7 +67,7 @@ func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher er
 
 // SetRefreshTime sets the period to refresh the config
 func (f *fileConfigHandler) SetRefreshTime(period configuration.Period) {
-	errors.CheckNilParameter(map[string]interface{}{"period": period})
+	errorschecker.CheckNilParameter(map[string]interface{}{"period": period})
 	defer f.errorDefer.TryThrowError()
 	f.stopRefresh <- true
 	f.period = period
@@ -92,7 +93,7 @@ func (f *fileConfigHandler) GetConfig() interface{} {
 func (f *fileConfigHandler) ForceRefresh() {
 	defer f.errorDefer.TryThrowError()
 	if f.newConfig != nil && !reflect.DeepEqual(f.newConfig, f.dataconfig) {
-		errors.TryPanic(copier.Copy(f.dataconfig, f.newConfig))
+		errorschecker.TryPanic(copier.Copy(f.dataconfig, f.newConfig))
 	}
 }
 
@@ -107,8 +108,8 @@ func (f *fileConfigHandler) Restore() {
 		panic(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil"))
 	}
 	f.newConfig = f.createConfig()
-	errors.TryPanic(copier.Copy(f.newConfig, f.dataconfig))
-	errors.TryPanic(copier.Copy(f.dataconfig, f.oldconfig))
+	errorschecker.TryPanic(copier.Copy(f.newConfig, f.dataconfig))
+	errorschecker.TryPanic(copier.Copy(f.dataconfig, f.oldconfig))
 	f.oldconfig = nil
 	f.publisher.Publish(&events.RestoredEvent{})
 }
@@ -119,20 +120,20 @@ func (f *fileConfigHandler) readFile() {
 	try := 1
 	for len(content) == 0 && try < maxTries {
 		content, err = ioutil.ReadFile(f.filePath)
-		errors.TryPanic(err)
+		errorschecker.TryPanic(err)
 		try++
 	}
 	ret := reflect.New(reflect.TypeOf(f.dataconfig)).Interface()
-	errors.TryPanic(json.Unmarshal(content, ret))
+	errorschecker.TryPanic(json.Unmarshal(content, ret))
 	f.fromFile = f.createConfig()
-	errors.TryPanic(copier.Copy(f.fromFile, ret))
+	errorschecker.TryPanic(copier.Copy(f.fromFile, ret))
 }
 
 func (f *fileConfigHandler) writeFile() {
 	var content []byte
 	var err error
 	content, err = json.MarshalIndent(f.dataconfig, "", "\t")
-	errors.TryPanic(err)
+	errorschecker.TryPanic(err)
 	_ = os.Mkdir(filepath.Dir(f.filePath), 0666)
 	disk.CreateFile(f.filePath, content)
 }
@@ -152,11 +153,11 @@ func (f *fileConfigHandler) onModifiedConfigFile() {
 				} else {
 
 					f.newConfig = f.createConfig()
-					errors.TryPanic(copier.Copy(f.newConfig, f.fromFile))
+					errorschecker.TryPanic(copier.Copy(f.newConfig, f.fromFile))
 					if !f.isFreezed {
 						f.oldconfig = f.createConfig()
-						errors.TryPanic(copier.Copy(f.oldconfig, f.dataconfig))
-						errors.TryPanic(copier.Copy(f.dataconfig, f.newConfig))
+						errorschecker.TryPanic(copier.Copy(f.oldconfig, f.dataconfig))
+						errorschecker.TryPanic(copier.Copy(f.dataconfig, f.newConfig))
 						f.newConfig = nil
 						f.publisher.Publish(&events.ModifiedEvent{})
 					}

@@ -2,6 +2,7 @@ package errors
 
 import (
 	"errors"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/logs"
 )
 
@@ -52,19 +53,19 @@ func (e *errorCatcher) TryCatchErrorAndFinally(tryfn func(), errorfn func(error)
 // CatchError if err is different from nil executes the error function
 func (e *errorCatcher) CatchError(err error, errorfn func(error)) {
 	defer e.deferTryError(false, errorfn, nil)
-	TryPanic(err)
+	errorschecker.TryPanic(err)
 }
 
 // EvenErrorFinally always execute the function finally, even if the error is different from nil
 func (e *errorCatcher) EvenErrorFinally(err error, finallyfn func()) {
 	defer e.deferTryError(false, nil, finallyfn)
-	TryPanic(err)
+	errorschecker.TryPanic(err)
 }
 
 // CatchErrorAndFinally execute allways the finally function and then if the error is different from nil  executes the error function
 func (e *errorCatcher) CatchErrorAndFinally(err error, errorfn func(error), finallyfn func()) {
 	defer e.deferTryError(false, errorfn, finallyfn)
-	TryPanic(err)
+	errorschecker.TryPanic(err)
 }
 
 func (e *errorCatcher) deferTryError(shouldContinue bool, errorfn func(error), finallyfn func()) {

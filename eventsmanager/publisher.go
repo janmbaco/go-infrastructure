@@ -2,6 +2,7 @@ package eventsmanager
 
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"reflect"
 	"sync"
 )
@@ -56,13 +57,13 @@ type publisher struct {
 
 // NewPublisher returns a Publisher
 func NewPublisher(subscriptions Subscriptions, errorCatcher errors.ErrorCatcher) Publisher {
-	errors.CheckNilParameter(map[string]interface{}{"subscriptions": subscriptions, "errorCatcher": errorCatcher})
+	errorschecker.CheckNilParameter(map[string]interface{}{"subscriptions": subscriptions, "errorCatcher": errorCatcher})
 	return &publisher{subscriptions: subscriptions, errorCatcher: errorCatcher}
 }
 
 // Publish publishes a event
 func (p *publisher) Publish(event EventObject) {
-	errors.CheckNilParameter(map[string]interface{}{"event": event})
+	errorschecker.CheckNilParameter(map[string]interface{}{"event": event})
 	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
 	ePublisher, _ := p.eventPublishers.LoadOrStore(typ, &eventPublisher{isPublishing: make(chan bool, 1), errorCatcher: p.errorCatcher})
 	ePublisher.(*eventPublisher).publish(event, p.subscriptions.GetAlls(event))

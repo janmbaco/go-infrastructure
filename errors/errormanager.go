@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"reflect"
 	"sync"
 )
@@ -26,7 +27,7 @@ func NewErrorManager() ErrorManager {
 }
 
 func (e *errorManager) GetCallback(err error) func(err error) {
-	CheckNilParameter(map[string]interface{}{"err": err})
+	errorschecker.CheckNilParameter(map[string]interface{}{"err": err})
 	if fn, ok := e.errorCallbacks.Load(reflect.Indirect(reflect.ValueOf(err)).Type()); ok {
 		return fn.(reflect.Value).Interface().(func(err error))
 	}
@@ -34,6 +35,6 @@ func (e *errorManager) GetCallback(err error) func(err error) {
 }
 
 func (e *errorManager) On(err error, callback func(err error)) {
-	CheckNilParameter(map[string]interface{}{"err": err, "callback": callback})
+	errorschecker.CheckNilParameter(map[string]interface{}{"err": err, "callback": callback})
 	e.errorCallbacks.LoadOrStore(reflect.Indirect(reflect.ValueOf(err)).Type(), reflect.ValueOf(callback))
 }

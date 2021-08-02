@@ -1,7 +1,7 @@
 package persistence
 
 import (
-	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"gorm.io/gorm"
 	"reflect"
 )
@@ -26,17 +26,17 @@ func NewDataAccess(db *gorm.DB, modelType reflect.Type) DataAccess {
 }
 
 func (r *dataAccess) Insert(datarow interface{}) {
-	errors.CheckNilParameter(map[string]interface{}{"datarow": datarow})
+	errorschecker.CheckNilParameter(map[string]interface{}{"datarow": datarow})
 
 	if reflect.TypeOf(datarow) != r.modelType {
 		panic("The datarow does not belong to this datamodel!")
 	}
 
-	errors.TryPanic(r.db.Model(r.datamodel).Create(datarow).Error)
+	errorschecker.TryPanic(r.db.Model(r.datamodel).Create(datarow).Error)
 }
 
 func (r *dataAccess) Select(datafilter interface{}) interface{} {
-	errors.CheckNilParameter(map[string]interface{}{"datafilter": datafilter})
+	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter})
 
 	if reflect.TypeOf(datafilter) != r.modelType {
 		panic("The datafilter does not belong to this dataAccess!")
@@ -45,17 +45,17 @@ func (r *dataAccess) Select(datafilter interface{}) interface{} {
 	pointer := reflect.New(slice.Type())
 	pointer.Elem().Set(slice)
 	dataArray := pointer.Interface()
-	errors.TryPanic(r.db.Model(r.datamodel).Where(datafilter).Find(dataArray).Error)
+	errorschecker.TryPanic(r.db.Model(r.datamodel).Where(datafilter).Find(dataArray).Error)
 	return reflect.ValueOf(dataArray).Elem().Interface()
 }
 
 func (r *dataAccess) Update(datafilter interface{}, datarow interface{}) {
-	errors.CheckNilParameter(map[string]interface{}{"datafilter": datafilter, "datarow": datarow})
-	errors.TryPanic(r.db.Model(r.datamodel).Where(datafilter).Updates(datarow).Error)
+	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter, "datarow": datarow})
+	errorschecker.TryPanic(r.db.Model(r.datamodel).Where(datafilter).Updates(datarow).Error)
 
 }
 
 func (r *dataAccess) Delete(datafilter interface{}) {
-	errors.CheckNilParameter(map[string]interface{}{"datafilter": datafilter})
-	errors.TryPanic(r.db.Model(r.datamodel).Delete(datafilter).Error)
+	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter})
+	errorschecker.TryPanic(r.db.Model(r.datamodel).Delete(datafilter).Error)
 }
