@@ -26,7 +26,7 @@ func NewContainer() Container {
 	deps := newDependencies()
 	container := &container{register: newRegister(deps), resolver: newResolver(deps)}
 	container.register.AsSingleton(new(Container), func() Container { return container }, nil)
-	container.register.AsSingleton(new(Register), container.Register(), nil)
-	container.register.AsSingleton(new(Resolver), container.Resolver(), nil)
+	container.register.AsSingleton(new(Register), func() Register { return container.register }, nil)
+	container.register.AsSingleton(new(Resolver), func() Resolver { return container.resolver }, nil)
 	return container
 }
