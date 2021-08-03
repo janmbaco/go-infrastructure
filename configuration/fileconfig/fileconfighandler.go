@@ -97,6 +97,7 @@ func (f *fileConfigHandler) ForceRefresh() {
 	}
 }
 
+// CanRestore indicates if the config can be restored
 func (f *fileConfigHandler) CanRestore() bool {
 	return f.oldconfig != nil
 }

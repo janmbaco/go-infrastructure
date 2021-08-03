@@ -7,6 +7,7 @@ import (
 	"sync"
 )
 
+// Subscriptions is the definition of a object responsible to store subscriptions for an event
 type Subscriptions interface {
 	Add(event EventObject, subscribeFunc interface{})
 	Remove(event EventObject, subscribeFunc interface{})
@@ -18,10 +19,12 @@ type subscriptions struct {
 	errorDefer errors.ErrorDefer
 }
 
+// NewSubscriptions returns a Subscriptions
 func NewSubscriptions(thrower errors.ErrorThrower) Subscriptions {
 	return &subscriptions{errorDefer: errors.NewErrorDefer(thrower, &subscriptionsErrorPipe{})}
 }
 
+// Add sets a subscription to an event
 func (s *subscriptions) Add(event EventObject, subscribeFunc interface{}) {
 	errorschecker.CheckNilParameter(map[string]interface{}{"event": event, "subscribeFunc": subscribeFunc})
 	defer s.errorDefer.TryThrowError()
@@ -49,6 +52,7 @@ func (s *subscriptions) Add(event EventObject, subscribeFunc interface{}) {
 
 }
 
+// Remove deletes a subscription to an event
 func (s *subscriptions) Remove(event EventObject, subscribeFunc interface{}) {
 	errorschecker.CheckNilParameter(map[string]interface{}{"event": event, "subscribeFunc": subscribeFunc})
 	defer s.errorDefer.TryThrowError()
@@ -72,6 +76,7 @@ func (s *subscriptions) Remove(event EventObject, subscribeFunc interface{}) {
 	}
 }
 
+// GetAlls gets all subscriptions for an event
 func (s *subscriptions) GetAlls(event EventObject) []reflect.Value {
 	errorschecker.CheckNilParameter(map[string]interface{}{"event": event})
 	result := make([]reflect.Value, 0)

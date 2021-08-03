@@ -8,6 +8,7 @@ import (
 	"github.com/janmbaco/go-infrastructure/logs"
 )
 
+// Cipher defines an object responsible to cipher and deciphers values by a key
 type Cipher interface {
 	Encrypt(value []byte) []byte
 	Decrypt(value []byte) []byte
@@ -20,7 +21,7 @@ type cipherImp struct {
 }
 
 // NewCipher returns a Cipher object
-func NewCipher(key []byte, logger logs.Logger, thrower errors.ErrorThrower) Cipher {
+func NewCipher(key []byte, logger logs.ErrorLogger, thrower errors.ErrorThrower) Cipher {
 	errorschecker.CheckNilParameter(map[string]interface{}{"thrower": thrower})
 	block, err := aes.NewCipher(key)
 	errorCatcher := errors.NewErrorCatcher(logger)

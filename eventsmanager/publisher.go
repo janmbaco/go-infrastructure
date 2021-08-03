@@ -7,14 +7,36 @@ import (
 	"sync"
 )
 
-// Publisher defines an object that publishes eventsmanager
+// Publisher defines an object responsible to publish events
 type Publisher interface {
 	Publish(event EventObject)
 }
 
-type eventPublisher struct {
-	isPublishing chan bool
-	errorCatcher errors.ErrorCatcher
+type (
+	publisher struct {
+		subscriptions   Subscriptions
+		eventPublishers sync.Map
+		errorCatcher    errors.ErrorCatcher
+	}
+	eventPublisher struct {
+		isPublishing chan bool
+		errorCatcher errors.ErrorCatcher
+	}
+)
+
+// NewPublisher returns a Publisher
+func NewPublisher(subscriptions Subscriptions, errorCatcher errors.ErrorCatcher) Publisher {
+	errorschecker.CheckNilParameter(map[string]interface{}{"subscriptions": subscriptions, "errorCatcher": errorCatcher})
+	return &publisher{subscriptions: subscriptions, errorCatcher: errorCatcher}
+}
+
+// Publish publishes a event
+func (p *publisher) Publish(event EventObject) {
+	errorschecker.CheckNilParameter(map[string]interface{}{"event": event})
+	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
+	ePublisher, _ := p.eventPublishers.LoadOrStore(typ, &eventPublisher{isPublishing: make(chan bool, 1), errorCatcher: p.errorCatcher})
+	ePublisher.(*eventPublisher).publish(event, p.subscriptions.GetAlls(event))
+
 }
 
 func (e *eventPublisher) publish(event EventObject, functions []reflect.Value) {
@@ -36,36 +58,13 @@ func (e *eventPublisher) publish(event EventObject, functions []reflect.Value) {
 				}
 				wg.Done()
 			}
-
 			if event.IsParallelPropagation() {
 				go callback(function)
 			} else {
 				callback(function)
 			}
-
 		})
 	}
 	wg.Wait()
 	<-e.isPublishing
-}
-
-type publisher struct {
-	subscriptions   Subscriptions
-	eventPublishers sync.Map
-	errorCatcher    errors.ErrorCatcher
-}
-
-// NewPublisher returns a Publisher
-func NewPublisher(subscriptions Subscriptions, errorCatcher errors.ErrorCatcher) Publisher {
-	errorschecker.CheckNilParameter(map[string]interface{}{"subscriptions": subscriptions, "errorCatcher": errorCatcher})
-	return &publisher{subscriptions: subscriptions, errorCatcher: errorCatcher}
-}
-
-// Publish publishes a event
-func (p *publisher) Publish(event EventObject) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"event": event})
-	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
-	ePublisher, _ := p.eventPublishers.LoadOrStore(typ, &eventPublisher{isPublishing: make(chan bool, 1), errorCatcher: p.errorCatcher})
-	ePublisher.(*eventPublisher).publish(event, p.subscriptions.GetAlls(event))
-
 }

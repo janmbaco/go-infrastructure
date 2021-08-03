@@ -1,21 +1,17 @@
 package dependencyinjection
 
 import (
-	"errors"
 	"fmt"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"reflect"
 	"sync"
 )
 
+// Dependencies defines an object responsible to store the regiters of provider of dependencies for a application
 type Dependencies interface {
-	Set(iface, provider interface{}, argsName map[uint]string)
-	SetTenant(tenant string, iface, provider interface{}, argsName map[uint]string)
-	SetAsSingleton(iface, provider interface{}, argsName map[uint]string)
-	SetTenantAsSingleton(tenant string, iface, provider interface{}, argsName map[uint]string)
-	Bind(ifaceFrom, ifaceTo interface{})
-	Get(iface interface{}, params map[string]interface{}) interface{}
-	GetTenant(tenant string, iface interface{}, params map[string]interface{}) interface{}
+	Set(key DependencyKey, object *DependencyObject)
+	Get(key DependencyKey) *DependencyObject
+	Bind(keyFrom DependencyKey, keyTo DependencyKey)
 }
 
 type dependencies struct {
@@ -27,81 +23,39 @@ func newDependencies() Dependencies {
 	return &dependencies{}
 }
 
-func (d *dependencies) Set(iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
-	d.objects.Store(&dependencyKey{iface: iface}, &dependencyObject{provider: provider, dependencies: d, argNames: argNames})
+func (d *dependencies) Set(key DependencyKey, object *DependencyObject) {
+	errorschecker.CheckNilParameter(map[string]interface{}{"object": object})
+	d.objects.Store(key, object)
 }
 
-func (d *dependencies) SetTenant(tenant string, iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
-	d.objects.Store(&dependencyKey{tenant: tenant, iface: iface}, &dependencyObject{provider: provider, dependencies: d, argNames: argNames})
-}
-
-func (d *dependencies) SetAsSingleton(iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
-	d.objects.Store(&dependencyKey{iface: iface}, &dependencyObject{provider: provider, isSingleton: true, dependencies: d, argNames: argNames})
-}
-
-func (d *dependencies) SetTenantAsSingleton(tenant string, iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
-	d.objects.Store(&dependencyKey{tenant: tenant, iface: iface}, &dependencyObject{provider: provider, isSingleton: true, dependencies: d, argNames: argNames})
-}
-
-func (d *dependencies) Bind(ifaceFrom, ifaceTo interface{}) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"ifaceFrom": ifaceFrom, "ifaceTo": ifaceTo})
-	d.binds.Store(reflect.Indirect(reflect.ValueOf(ifaceFrom)).Type(), reflect.Indirect(reflect.ValueOf(ifaceTo)).Type())
-}
-
-func (d *dependencies) Get(iface interface{}, params map[string]interface{}) interface{} {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface})
-	return d.getAutorResolveObject("", d.getType(reflect.Indirect(reflect.ValueOf(iface)).Type()), params)
-
-}
-
-func (d *dependencies) GetTenant(tenant string, iface interface{}, params map[string]interface{}) interface{} {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface})
-	return d.getAutorResolveObject(tenant, d.getType(reflect.Indirect(reflect.ValueOf(iface)).Type()), params)
-}
-
-func (d *dependencies) getType(iface reflect.Type) reflect.Type {
-	if ifaceBind, ok := d.binds.Load(iface); ok {
-		return ifaceBind.(reflect.Type)
+func (d *dependencies) Get(key DependencyKey) *DependencyObject {
+	realKey := key
+	if bind, ok := d.binds.Load(key); ok {
+		realKey = bind.(DependencyKey)
 	}
-	return iface
-}
-
-func (d *dependencies) getAutorResolveObject(tenant string, typ reflect.Type, params map[string]interface{}) interface{} {
-	var object *dependencyObject
-	d.objects.Range(func(key, value interface{}) bool {
-		storeTenant := key.(*dependencyKey).tenant
-		storeIface := key.(*dependencyKey).iface
-		if storeTenant == tenant && reflect.Indirect(reflect.ValueOf(storeIface)).Type() == typ {
-			object = value.(*dependencyObject)
-			return false
-		}
-		return true
-	})
-	if object == nil {
-		panic(errors.New(fmt.Sprintf("%v is not registered as a dependency", typ.Name())))
+	if object, ok := d.objects.Load(realKey); ok {
+		return object.(*DependencyObject)
 	}
-
-	return object.AutoResolve(params)
+	panic(fmt.Errorf("%v is not registered as a dependency", key.iface.Name()))
 }
 
-type dependencyKey struct {
+func (d *dependencies) Bind(keyFrom DependencyKey, keyTo DependencyKey) {
+	d.binds.Store(keyFrom, keyTo)
+}
+
+type DependencyKey struct {
 	tenant string
-	iface  interface{}
+	iface  reflect.Type
 }
 
-type dependencyObject struct {
-	provider     interface{}
-	object       interface{}
-	isSingleton  bool
-	argNames     map[uint]string
-	dependencies *dependencies
+type DependencyObject struct {
+	provider    interface{}
+	object      interface{}
+	isSingleton bool
+	argNames    map[uint]string
 }
 
-func (do *dependencyObject) AutoResolve(params map[string]interface{}) interface{} {
+func (do *DependencyObject) autoResolve(params map[string]interface{}, dependencies Dependencies) interface{} {
 	if do.isSingleton && do.object != nil {
 		return do.object
 	}
@@ -118,7 +72,7 @@ func (do *dependencyObject) AutoResolve(params map[string]interface{}) interface
 			if object, isInParamas := params[do.argNames[uint(i)]]; name != "" && isInParamas {
 				args = append(args, reflect.ValueOf(object))
 			} else {
-				args = append(args, reflect.ValueOf(do.dependencies.getAutorResolveObject("", do.dependencies.getType(functionType.In(i)), params)))
+				args = append(args, reflect.ValueOf(dependencies.Get(DependencyKey{iface: functionType.In(i)}).autoResolve(params, dependencies)))
 			}
 		}
 	}

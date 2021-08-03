@@ -1,11 +1,11 @@
-package Config_test
+package configuration_test
 
 import (
 	"encoding/json"
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/configuration/events"
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	dependencyinjection_test "github.com/janmbaco/go-infrastructure/dependencyinjection.test"
+	dependencyinjectiontest "github.com/janmbaco/go-infrastructure/dependencyinjection.test"
 	"github.com/janmbaco/go-infrastructure/disk"
 	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
@@ -26,12 +26,11 @@ var CancelMessage = "Is Bad Options"
 
 func TestNewFileConfigHandler(t *testing.T) {
 	container := dependencyinjection.NewContainer()
-	dependencyinjection_test.Registerfacade(container)
+	dependencyinjectiontest.Registerfacade(container.Register())
 
-	errorCatcher := container.Resolver.Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
+	errorCatcher := container.Resolver().Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
 	errorCatcher.TryCatchErrorAndFinally(func() {
-
-		configHandler := container.Resolver.Type(
+		configHandler := container.Resolver().Type(
 			new(configuration.ConfigHandler),
 			map[string]interface{}{
 				"filePath": filePath,
@@ -74,12 +73,9 @@ func TestNewFileConfigHandler(t *testing.T) {
 		modifyWith(BadOptions)
 		wg.Wait()
 		wg.Add(1)
-
 		modifyWith(GoodOtions)
 		wg.Wait()
-
 		t.Log("Test finalized!")
-
 	}, func(err error) {
 		t.Error(err)
 	}, func() {
@@ -88,7 +84,6 @@ func TestNewFileConfigHandler(t *testing.T) {
 		disk.DeleteFile("configuration.json.badconfig")
 	})
 }
-
 func modifyWith(text string) {
 	lcontent, lerr := json.MarshalIndent(&configFile{
 		Options: text,

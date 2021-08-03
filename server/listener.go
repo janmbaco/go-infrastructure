@@ -94,7 +94,6 @@ func (l *listener) Stop() {
 	l.logger.Infof("%v - Server Stop", l.serverSetter.Name)
 	l.stopServer()
 	l.stop <- true
-
 }
 
 func (l *listener) startLoop() {
@@ -136,10 +135,8 @@ func (l *listener) startLoop() {
 			l.finish <- true
 			break
 		}
-
 	}
 }
-
 func (l *listener) initializeServer() {
 	if l.serverSetter.Addr == "" {
 		panic(newListenerError(AddressNotConfigured, "address not configured"))

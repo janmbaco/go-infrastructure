@@ -20,6 +20,7 @@ func newFileConfigHandlerError(errorType FileConfigHandlerErrorType, message str
 		}}
 }
 
+// FileConfigHandlerErrorType is the type of the errors of FileConfigHandler
 type FileConfigHandlerErrorType uint8
 
 const (

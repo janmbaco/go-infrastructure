@@ -25,15 +25,15 @@ var address2 = ":8090"
 
 func TestNewListener(t *testing.T) {
 	container := dependencyinjection.NewContainer()
-	dependencyinjection_test.Registerfacade(container)
+	dependencyinjection_test.Registerfacade(container.Register())
 
-	errorCatcher := container.Resolver.Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
+	errorCatcher := container.Resolver().Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
 	errorCatcher.TryFinally(func() {
 
 		wg := sync.WaitGroup{}
 		wg.Add(2)
 
-		builder := container.Resolver.Type(
+		builder := container.Resolver().Type(
 			new(server.ListenerBuilder),
 			map[string]interface{}{
 				"filePath": filePath,
