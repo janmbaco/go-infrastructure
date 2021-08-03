@@ -34,7 +34,6 @@ func (e *errorDefer) TryThrowError() {
 		case error:
 			err = re.(error)
 		}
-		panic(e.errorPipe.Pipe(err))
-
+		e.thrower.Throw(e.errorPipe.Pipe(err))
 	}
 }

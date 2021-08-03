@@ -7,22 +7,18 @@ import (
 )
 
 type (
-	ErrorSetter interface {
-		On(err error, callback func(err error))
-	}
 	ErrorCallbacks interface {
 		GetCallback(err error) func(err error)
 	}
 	ErrorManager interface {
-		ErrorSetter
-		ErrorCallbacks
+		On(err error, callback func(err error))
 	}
 )
 type errorManager struct {
 	errorCallbacks sync.Map
 }
 
-func NewErrorManager() ErrorManager {
+func NewErrorManager() *errorManager {
 	return &errorManager{}
 }
 

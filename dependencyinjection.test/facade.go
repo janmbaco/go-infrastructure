@@ -17,7 +17,6 @@ func Registerfacade(container *dependencyinjection.Container) {
 	container.Register.AsSingleton(new(errors.ErrorCatcher), errors.NewErrorCatcher, nil)
 	container.Register.AsSingleton(new(errors.ErrorManager), errors.NewErrorManager, nil)
 	container.Register.Bind(new(errors.ErrorCallbacks), new(errors.ErrorManager))
-	container.Register.Bind(new(errors.ErrorSetter), new(errors.ErrorManager))
 	container.Register.AsSingleton(new(errors.ErrorThrower), errors.NewErrorThrower, nil)
 	container.Register.AsSingleton(new(configuration.ConfigHandler), fileconfig.NewFileConfigHandler, map[uint]string{0: "filePath", 1: "defaults"})
 	container.Register.AsSingleton(new(server.ListenerBuilder), server.NewListenerBuilder, nil)

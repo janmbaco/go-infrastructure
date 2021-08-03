@@ -68,12 +68,12 @@ func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, 
 		serverSetter:        &ServerSetter{},
 		bootstrapperFunc:    bootstrapperFunc,
 		grpcDefinitionsFunc: grpdDefinitionsFunc,
-		errorDefer:          errors.NewErrorDefer(errorThrower, &listenerErrorPipe{}),
 		start:               make(chan bool, 1),
 		stop:                make(chan bool, 1),
 		finish:              make(chan bool, 1),
 	}
 
+	listener.errorDefer = errors.NewErrorDefer(errorThrower, &listenerErrorPipe{})
 	restoredConfig := listener.onRestoredConfig
 	modifiedConfig := listener.onModifiedConfig
 
@@ -83,48 +83,7 @@ func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, 
 }
 
 func (l *listener) Start() {
-	defer l.errorDefer.TryThrowError()
-	go func() {
-		for {
-			select {
-			case <-l.start:
-				l.errorCatcher.TryCatchError(func() {
-					l.bootstrapperFunc(l.configHandler.GetConfig(), l.serverSetter)
-
-					l.initializeServer()
-
-					l.logger.Infof("%v - Listen on %v", l.serverSetter.Name, l.serverSetter.Addr)
-
-					switch l.serverSetter.ServerType {
-					case HttpServer:
-						if l.serverSetter.TLSConfig != nil {
-							errorschecker.TryPanic(l.httpServer.ListenAndServeTLS("", ""))
-						} else {
-							errorschecker.TryPanic(l.httpServer.ListenAndServe())
-						}
-					case GRpcSever:
-						lis, err := net.Listen("tcp", l.serverSetter.Addr)
-						errorschecker.TryPanic(err)
-						l.grpcDefinitionsFunc(l.grpcServer)
-						errorschecker.TryPanic(l.grpcServer.Serve(lis))
-					}
-				}, func(err error) {
-					if err.Error() != "http: Server closed" {
-						l.logger.Errorf("%v - %v", l.serverSetter.Name, err.Error())
-						if l.configHandler.CanRestore() {
-							l.configHandler.Restore()
-						} else {
-							panic(err)
-						}
-					}
-				})
-			case <-l.stop:
-				l.finish <- true
-				break
-			}
-
-		}
-	}()
+	go l.startLoop()
 	l.start <- true
 	<-l.finish
 }
@@ -138,12 +97,46 @@ func (l *listener) Stop() {
 
 }
 
-func (l *listener) stopServer() {
-	switch l.serverSetter.ServerType {
-	case HttpServer:
-		errorschecker.TryPanic(l.httpServer.Shutdown(context.Background()))
-	case GRpcSever:
-		l.grpcServer.GracefulStop()
+func (l *listener) startLoop() {
+	defer l.errorDefer.TryThrowError()
+	for {
+		select {
+		case <-l.start:
+			l.errorCatcher.TryCatchError(func() {
+				l.bootstrapperFunc(l.configHandler.GetConfig(), l.serverSetter)
+
+				l.initializeServer()
+
+				l.logger.Infof("%v - Listen on %v", l.serverSetter.Name, l.serverSetter.Addr)
+
+				switch l.serverSetter.ServerType {
+				case HttpServer:
+					if l.serverSetter.TLSConfig != nil {
+						errorschecker.TryPanic(l.httpServer.ListenAndServeTLS("", ""))
+					} else {
+						errorschecker.TryPanic(l.httpServer.ListenAndServe())
+					}
+				case GRpcSever:
+					lis, err := net.Listen("tcp", l.serverSetter.Addr)
+					errorschecker.TryPanic(err)
+					l.grpcDefinitionsFunc(l.grpcServer)
+					errorschecker.TryPanic(l.grpcServer.Serve(lis))
+				}
+			}, func(err error) {
+				if err.Error() != "http: Server closed" {
+					l.logger.Errorf("%v - %v", l.serverSetter.Name, err.Error())
+					if l.configHandler.CanRestore() {
+						l.configHandler.Restore()
+					} else {
+						panic(err)
+					}
+				}
+			})
+		case <-l.stop:
+			l.finish <- true
+			break
+		}
+
 	}
 }
 
@@ -172,6 +165,15 @@ func (l *listener) initializeServer() {
 		} else {
 			l.grpcServer = grpc.NewServer()
 		}
+	}
+}
+
+func (l *listener) stopServer() {
+	switch l.serverSetter.ServerType {
+	case HttpServer:
+		errorschecker.TryPanic(l.httpServer.Shutdown(context.Background()))
+	case GRpcSever:
+		l.grpcServer.GracefulStop()
 	}
 }
 
