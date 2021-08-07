@@ -3,15 +3,14 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"github.com/janmbaco/go-infrastructure/configuration"
+	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
+	"github.com/janmbaco/go-infrastructure/logs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"net"
 	"net/http"
-
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/logs"
 )
 
 type (
@@ -49,10 +48,11 @@ type (
 		errorCatcher        errors.ErrorCatcher
 		errorDefer          errors.ErrorDefer
 		start               chan bool
+		started             chan bool
 		stop                chan bool
+		stopped             bool
 		finish              chan bool
 		isBusy              chan bool
-		stopped             bool
 	}
 )
 
@@ -71,8 +71,10 @@ func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, 
 		bootstrapperFunc:    bootstrapperFunc,
 		grpcDefinitionsFunc: grpdDefinitionsFunc,
 		start:               make(chan bool, 1),
+		started:             make(chan bool, 1),
 		stop:                make(chan bool, 1),
 		finish:              make(chan bool, 1),
+		isBusy:              make(chan bool, 1),
 	}
 
 	listener.errorDefer = errors.NewErrorDefer(errorThrower, &listenerErrorPipe{})
@@ -85,17 +87,20 @@ func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, 
 }
 
 func (l *listener) Start() chan bool {
+	l.stopped = false
 	go l.startLoop()
 	l.start <- true
+	<-l.started
 	return l.finish
 }
 
 func (l *listener) Stop() {
 	defer l.errorDefer.TryThrowError()
+	l.isBusy <- true
 	l.logger.Infof("%v - Server Stop", l.serverSetter.Name)
 	l.stopServer()
 	l.stop <- true
-	l.stopped = true
+	<-l.isBusy
 }
 
 func (l *listener) startLoop() {
@@ -105,30 +110,29 @@ func (l *listener) startLoop() {
 		case <-l.start:
 			l.errorCatcher.TryCatchError(func() {
 				l.bootstrapperFunc(l.configHandler.GetConfig(), l.serverSetter)
-
 				l.initializeServer()
-				if !l.stopped {
-					l.logger.Infof("%v - Listen on %v", l.serverSetter.Name, l.serverSetter.Addr)
+				l.logger.Infof("%v - Listen on %v", l.serverSetter.Name, l.serverSetter.Addr)
 
-					switch l.serverSetter.ServerType {
-					case HttpServer:
-						if l.serverSetter.TLSConfig != nil {
-							errorschecker.TryPanic(l.httpServer.ListenAndServeTLS("", ""))
-						} else {
-							errorschecker.TryPanic(l.httpServer.ListenAndServe())
-						}
-					case GRpcSever:
-						lis, err := net.Listen("tcp", l.serverSetter.Addr)
-						errorschecker.TryPanic(err)
-						l.grpcDefinitionsFunc(l.grpcServer)
-						errorschecker.TryPanic(l.grpcServer.Serve(lis))
+				switch l.serverSetter.ServerType {
+				case HttpServer:
+					l.started <- true
+					if l.serverSetter.TLSConfig != nil {
+						errorschecker.TryPanic(l.httpServer.ListenAndServeTLS("", ""))
+					} else {
+						errorschecker.TryPanic(l.httpServer.ListenAndServe())
 					}
+				case GRpcSever:
+					lis, err := net.Listen("tcp", l.serverSetter.Addr)
+					errorschecker.TryPanic(err)
+					l.grpcDefinitionsFunc(l.grpcServer)
+					l.started <- true
+					errorschecker.TryPanic(l.grpcServer.Serve(lis))
 				}
 			}, func(err error) {
 				if err.Error() != "http: Server closed" {
 					l.logger.Errorf("%v - %v", l.serverSetter.Name, err.Error())
 					if l.configHandler.CanRestore() {
-						l.configHandler.Restore()
+						go l.configHandler.Restore()
 					} else {
 						panic(err)
 					}
@@ -136,6 +140,10 @@ func (l *listener) startLoop() {
 			})
 		case <-l.stop:
 			l.finish <- true
+			l.stopped = true
+			break
+		}
+		if l.stopped {
 			break
 		}
 	}
@@ -179,9 +187,14 @@ func (l *listener) stopServer() {
 
 func (l *listener) restart() {
 	defer l.errorDefer.TryThrowError()
-	l.logger.Tracef("%v Restart Server", l.serverSetter.Name)
-	l.stopServer()
-	l.start <- true
+	l.isBusy <- true
+	if !l.stopped {
+		l.logger.Tracef("%v Restart Server", l.serverSetter.Name)
+		l.stopServer()
+		l.start <- true
+		<-l.started
+	}
+	<-l.isBusy
 }
 
 func (l *listener) onRestoredConfig() {

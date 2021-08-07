@@ -115,6 +115,7 @@ func (f *fileConfigHandler) Restore() {
 	errorschecker.TryPanic(copier.Copy(f.newConfig, f.dataconfig))
 	errorschecker.TryPanic(copier.Copy(f.dataconfig, f.oldconfig))
 	f.oldconfig = nil
+	f.writeFile()
 	f.publisher.Publish(&events.RestoredEvent{})
 }
 

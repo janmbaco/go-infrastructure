@@ -61,9 +61,8 @@ func TestNewListener(t *testing.T) {
 		listener2 := builder.GetListener()
 		finishListener2 := listener2.Start()
 		go func() {
-			<-time.After(100 * time.Millisecond)
 			PutTheSamePortInConfig()
-			<-time.After(1200 * time.Millisecond)
+			<-time.After(800 * time.Millisecond)
 			listener.Stop()
 			listener2.Stop()
 		}()
