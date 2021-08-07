@@ -51,11 +51,13 @@ func (lb *listenerBuilder) GetListener() Listener {
 	if lb.bootstrapperFunc == nil {
 		panic(newListenerBuilderError(NilBootstraperError, "bootsrapper function is not set"))
 	}
+	lb.logger.Info("-----------------Exec-BootstrapperFunc-by-Builder---------------------")
 	serverSetter := &ServerSetter{}
 	lb.bootstrapperFunc(lb.configHandler.GetConfig(), serverSetter)
 	if serverSetter.ServerType == GRpcSever && lb.grpcDefinitionsFunc == nil {
 		panic(newListenerBuilderError(NilGrpcDefinitionsError, "grpc definitions function is not set"))
 	}
+	lb.logger.Info("----------------------------------------------------------------------")
 	listener := newListener(lb.configHandler, lb.logger, lb.errorCatcher, lb.errorThrower, lb.bootstrapperFunc, lb.grpcDefinitionsFunc)
 	lb.bootstrapperFunc = nil
 	lb.grpcDefinitionsFunc = nil
