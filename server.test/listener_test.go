@@ -9,7 +9,6 @@ import (
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/server"
 	"net/http"
-	"sync"
 	"testing"
 	"time"
 )
@@ -29,10 +28,6 @@ func TestNewListener(t *testing.T) {
 
 	errorCatcher := container.Resolver().Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
 	errorCatcher.TryFinally(func() {
-
-		wg := sync.WaitGroup{}
-		wg.Add(2)
-
 		builder := container.Resolver().Type(
 			new(server.ListenerBuilder),
 			map[string]interface{}{
@@ -52,10 +47,7 @@ func TestNewListener(t *testing.T) {
 		})
 
 		listener := builder.GetListener()
-		go func() {
-			listener.Start()
-			wg.Done()
-		}()
+		finishListener := listener.Start()
 
 		builder.SetBootstrapper(func(config interface{}, serverSetter *server.ServerSetter) {
 			serverSetter.Name = "Segundo"
@@ -67,19 +59,16 @@ func TestNewListener(t *testing.T) {
 			serverSetter.Handler = mux
 		})
 		listener2 := builder.GetListener()
+		finishListener2 := listener2.Start()
 		go func() {
-			listener2.Start()
-			wg.Done()
-		}()
-		PutTheSamePortInConfig()
-
-		go func() {
-			<-time.After(800 * time.Millisecond)
+			<-time.After(100 * time.Millisecond)
+			PutTheSamePortInConfig()
+			<-time.After(1200 * time.Millisecond)
 			listener.Stop()
 			listener2.Stop()
 		}()
-
-		wg.Wait()
+		<-finishListener
+		<-finishListener2
 	}, func() {
 		<-time.After(5 * time.Millisecond)
 		disk.DeleteFile(filePath)

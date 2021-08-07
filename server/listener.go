@@ -16,7 +16,7 @@ import (
 
 type (
 	Listener interface {
-		Start()
+		Start() chan bool
 		Stop()
 	}
 
@@ -33,6 +33,7 @@ type (
 		TLSConfig    *tls.Config
 		TLSNextProto map[string]func(*http.Server, *tls.Conn, http.Handler)
 		ServerType   ServerType
+		IsChecking   bool
 	}
 
 	BootstrapperFunc func(config interface{}, serverSetter *ServerSetter)
@@ -41,7 +42,6 @@ type (
 		configHandler       configuration.ConfigHandler
 		bootstrapperFunc    BootstrapperFunc
 		grpcDefinitionsFunc GrpcDefinitionsFunc
-		reStart             bool
 		serverSetter        *ServerSetter
 		httpServer          *http.Server
 		grpcServer          *grpc.Server
@@ -51,6 +51,8 @@ type (
 		start               chan bool
 		stop                chan bool
 		finish              chan bool
+		isBusy              chan bool
+		stopped             bool
 	}
 )
 
@@ -82,18 +84,18 @@ func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, 
 	return listener
 }
 
-func (l *listener) Start() {
+func (l *listener) Start() chan bool {
 	go l.startLoop()
 	l.start <- true
-	<-l.finish
+	return l.finish
 }
 
 func (l *listener) Stop() {
 	defer l.errorDefer.TryThrowError()
-
 	l.logger.Infof("%v - Server Stop", l.serverSetter.Name)
 	l.stopServer()
 	l.stop <- true
+	l.stopped = true
 }
 
 func (l *listener) startLoop() {
@@ -105,21 +107,22 @@ func (l *listener) startLoop() {
 				l.bootstrapperFunc(l.configHandler.GetConfig(), l.serverSetter)
 
 				l.initializeServer()
+				if !l.stopped {
+					l.logger.Infof("%v - Listen on %v", l.serverSetter.Name, l.serverSetter.Addr)
 
-				l.logger.Infof("%v - Listen on %v", l.serverSetter.Name, l.serverSetter.Addr)
-
-				switch l.serverSetter.ServerType {
-				case HttpServer:
-					if l.serverSetter.TLSConfig != nil {
-						errorschecker.TryPanic(l.httpServer.ListenAndServeTLS("", ""))
-					} else {
-						errorschecker.TryPanic(l.httpServer.ListenAndServe())
+					switch l.serverSetter.ServerType {
+					case HttpServer:
+						if l.serverSetter.TLSConfig != nil {
+							errorschecker.TryPanic(l.httpServer.ListenAndServeTLS("", ""))
+						} else {
+							errorschecker.TryPanic(l.httpServer.ListenAndServe())
+						}
+					case GRpcSever:
+						lis, err := net.Listen("tcp", l.serverSetter.Addr)
+						errorschecker.TryPanic(err)
+						l.grpcDefinitionsFunc(l.grpcServer)
+						errorschecker.TryPanic(l.grpcServer.Serve(lis))
 					}
-				case GRpcSever:
-					lis, err := net.Listen("tcp", l.serverSetter.Addr)
-					errorschecker.TryPanic(err)
-					l.grpcDefinitionsFunc(l.grpcServer)
-					errorschecker.TryPanic(l.grpcServer.Serve(lis))
 				}
 			}, func(err error) {
 				if err.Error() != "http: Server closed" {
@@ -177,7 +180,6 @@ func (l *listener) stopServer() {
 func (l *listener) restart() {
 	defer l.errorDefer.TryThrowError()
 	l.logger.Tracef("%v Restart Server", l.serverSetter.Name)
-	l.reStart = true
 	l.stopServer()
 	l.start <- true
 }
