@@ -23,6 +23,12 @@ const (
 
 type ErrorLogger interface {
 	PrintError(level LogLevel, err error)
+	TryPrintError(level LogLevel, err error)
+	TryTrace(err error)
+	TryInfo(err error)
+	TryWarning(err error)
+	TryError(err error)
+	TryFatal(err error)
 }
 
 type Logger interface {
@@ -142,6 +148,12 @@ func (logger *logger) PrintError(level LogLevel, err error) {
 	logger.Println(level, err.Error())
 }
 
+func (logger *logger) TryPrintError(level LogLevel, err error) {
+	if err != nil {
+		logger.PrintError(level, err)
+	}
+}
+
 func (logger *logger) Trace(message string) {
 	logger.Println(Trace, message)
 }
@@ -150,11 +162,19 @@ func (logger *logger) Tracef(format string, a ...interface{}) {
 	logger.Printlnf(Trace, format, a...)
 }
 
+func (logger *logger) TryTrace(err error) {
+	logger.TryPrintError(Trace, err)
+}
+
 func (logger *logger) Info(message string) {
 	logger.Println(Info, message)
 }
 func (logger *logger) Infof(format string, a ...interface{}) {
 	logger.Printlnf(Info, format, a...)
+}
+
+func (logger *logger) TryInfo(err error) {
+	logger.TryPrintError(Info, err)
 }
 
 func (logger *logger) Warning(message string) {
@@ -165,6 +185,10 @@ func (logger *logger) Warningf(format string, a ...interface{}) {
 	logger.Printlnf(Warning, format, a...)
 }
 
+func (logger *logger) TryWarning(err error) {
+	logger.PrintError(Warning, err)
+}
+
 func (logger *logger) Error(message string) {
 	logger.Println(Error, message)
 }
@@ -173,12 +197,20 @@ func (logger *logger) Errorf(format string, a ...interface{}) {
 	logger.Printlnf(Error, format, a...)
 }
 
+func (logger *logger) TryError(err error) {
+	logger.TryPrintError(Error, err)
+}
+
 func (logger *logger) Fatal(message string) {
 	logger.Println(Fatal, message)
 }
 
 func (logger *logger) Fatalf(format string, a ...interface{}) {
 	logger.Printlnf(Fatal, format, a...)
+}
+
+func (logger *logger) TryFatal(err error) {
+	logger.PrintError(Fatal, err)
 }
 
 func setLevel(level LogLevel) map[LogLevel]bool {
