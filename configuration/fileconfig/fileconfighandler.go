@@ -62,6 +62,9 @@ func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher er
 	}
 	disk.NewFileChangedNotifier(fileConfigHandler.filePath, errorCatcher, errorThrower).Subscribe(fileConfigHandler.onModifiedConfigFile)
 	fileConfigHandler.readFile()
+	if !reflect.DeepEqual(fileConfigHandler.fromFile, fileConfigHandler.dataconfig) {
+		errorschecker.TryPanic(copier.Copy(fileConfigHandler.dataconfig, fileConfigHandler.fromFile))
+	}
 	return fileConfigHandler
 }
 
@@ -152,7 +155,6 @@ func (f *fileConfigHandler) onModifiedConfigFile() {
 					f.recoveryFile()
 					f.publisher.Publish(&events.ModificationCanceledEvent{EventArgs: &events.ModificationCanceledEventArgs{CancelMessage: eventArgs.CancelMessage}})
 				} else {
-
 					f.newConfig = f.createConfig()
 					errorschecker.TryPanic(copier.Copy(f.newConfig, f.fromFile))
 					if !f.isFreezed {
