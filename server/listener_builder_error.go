@@ -5,18 +5,29 @@ import (
 	"reflect"
 )
 
-type ListenerBuilderError struct {
+// ListenerBuilderError is the errors of ListenerBuilder
+type ListenerBuilderError interface {
 	errors.CustomError
+	GetErrorType() ListenerBuilderErrorType
+}
+
+type listenerBuilderError struct {
+	errors.CustomizableError
 	ErrorType ListenerBuilderErrorType
 }
 
-func newListenerBuilderError(errorType ListenerBuilderErrorType, message string) *ListenerBuilderError {
-	return &ListenerBuilderError{
-		ErrorType: errorType,
-		CustomError: errors.CustomError{
+func newListenerBuilderError(errorType ListenerBuilderErrorType, message string, internalError error) ListenerBuilderError {
+	return &listenerBuilderError{
+		CustomizableError: errors.CustomizableError{
 			Message:       message,
-			InternalError: nil,
-		}}
+			InternalError: internalError,
+		},
+		ErrorType: errorType,
+	}
+}
+
+func (e *listenerBuilderError) GetErrorType() ListenerBuilderErrorType {
+	return e.ErrorType
 }
 
 type ListenerBuilderErrorType uint8
@@ -31,14 +42,8 @@ type listenerBuilderErrorPipe struct{}
 
 func (listenerErrorPipe *listenerBuilderErrorPipe) Pipe(err error) error {
 	resultError := err
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); errType != reflect.TypeOf(&ListenerBuilderError{}) {
-		resultError = &ListenerBuilderError{
-			CustomError: errors.CustomError{
-				Message:       err.Error(),
-				InternalError: err,
-			},
-			ErrorType: UnexpectedBuilderError,
-		}
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*ListenerBuilderError)(nil)).Elem()) {
+		resultError = newListenerBuilderError(UnexpectedBuilderError, err.Error(), err)
 	}
 	return resultError
 }

@@ -1,19 +1,26 @@
 package errors
 
-import "reflect"
-
 // CustomError is an customized error
-type CustomError struct {
+type CustomError interface {
+	error
+	GetMessage() string
+	GetInternalError() error
+}
+
+// CustomizableError is a error with a error with a customizable message
+type CustomizableError struct {
 	Message       string
 	InternalError error
 }
 
-// Error shows error message
-func (c *CustomError) Error() string {
-	return c.Message
+func (e *CustomizableError) Error() string {
+	return e.Message
 }
 
-// InternalErrorTypeString shows error message
-func (c *CustomError) InternalErrorTypeString() string {
-	return reflect.Indirect(reflect.ValueOf(c.InternalError)).Type().String()
+func (e *CustomizableError) GetMessage() string {
+	return e.Message
+}
+
+func (e *CustomizableError) GetInternalError() error {
+	return e.InternalError
 }
