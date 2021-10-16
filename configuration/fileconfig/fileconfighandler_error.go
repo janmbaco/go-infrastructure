@@ -6,18 +6,28 @@ import (
 )
 
 // FileConfigHandlerError is the struct of an error occurs in FileConfigHandler object
-type FileConfigHandlerError struct {
+type FileConfigHandlerError interface {
 	errors.CustomError
+	GetErrorType() FileConfigHandlerErrorType
+}
+
+type fileConfigHandlerError struct {
+	errors.CustomizableError
 	ErrorType FileConfigHandlerErrorType
 }
 
-func newFileConfigHandlerError(errorType FileConfigHandlerErrorType, message string) *FileConfigHandlerError {
-	return &FileConfigHandlerError{
-		ErrorType: errorType,
-		CustomError: errors.CustomError{
+func newFileConfigHandlerError(errorType FileConfigHandlerErrorType, message string, internalError error) FileConfigHandlerError {
+	return &fileConfigHandlerError{
+		CustomizableError: errors.CustomizableError{
 			Message:       message,
-			InternalError: nil,
-		}}
+			InternalError: internalError,
+		},
+		ErrorType: errorType,
+	}
+}
+
+func (e *fileConfigHandlerError) GetErrorType() FileConfigHandlerErrorType {
+	return e.ErrorType
 }
 
 // FileConfigHandlerErrorType is the type of the errors of FileConfigHandler
@@ -33,15 +43,9 @@ type fileConfigHandleErrorPipe struct{}
 func (*fileConfigHandleErrorPipe) Pipe(err error) error {
 	resultError := err
 
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); errType != reflect.TypeOf(&FileConfigHandlerError{}) {
-		errorType := UnexpectedError
-		resultError = &FileConfigHandlerError{
-			CustomError: errors.CustomError{
-				Message:       err.Error(),
-				InternalError: err,
-			},
-			ErrorType: errorType,
-		}
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*FileConfigHandlerError)(nil)).Elem()) {
+		resultError = newFileConfigHandlerError(UnexpectedError, err.Error(), err)
 	}
+
 	return resultError
 }

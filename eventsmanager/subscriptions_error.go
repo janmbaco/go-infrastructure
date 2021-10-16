@@ -5,9 +5,27 @@ import (
 	"reflect"
 )
 
-type SubscriptionsError struct {
+type SubscriptionsError interface {
 	errors.CustomError
+	GetErrorType() SubscriptionsErrorType
+}
+
+type subscriptionsError struct {
+	errors.CustomizableError
 	ErrorType SubscriptionsErrorType
+}
+
+func newSubscriptionsError(errorType SubscriptionsErrorType, message string, internalError error) SubscriptionsError {
+	return &subscriptionsError{
+		CustomizableError: errors.CustomizableError{
+			Message:       message,
+			InternalError: internalError,
+		},
+		ErrorType: errorType,
+	}
+}
+func (e *subscriptionsError) GetErrorType() SubscriptionsErrorType {
+	return e.ErrorType
 }
 
 type SubscriptionsErrorType uint8
@@ -22,14 +40,8 @@ type subscriptionsErrorPipe struct{}
 
 func (*subscriptionsErrorPipe) Pipe(err error) error {
 	resultError := err
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); errType != reflect.TypeOf(&SubscriptionsError{}) {
-		resultError = &SubscriptionsError{
-			CustomError: errors.CustomError{
-				Message:       err.Error(),
-				InternalError: err,
-			},
-			ErrorType: Unexpected,
-		}
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*SubscriptionsError)(nil)).Elem()) {
+		resultError = newSubscriptionsError(Unexpected, err.Error(), err)
 	}
 	return resultError
 }

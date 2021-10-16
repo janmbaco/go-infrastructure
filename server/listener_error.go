@@ -5,18 +5,28 @@ import (
 	"reflect"
 )
 
-type ListenerError struct {
+type ListenerError interface {
 	errors.CustomError
+	GetErrorType() ListenerErrorType
+}
+
+type listenerError struct {
+	errors.CustomizableError
 	ErrorType ListenerErrorType
 }
 
-func newListenerError(errorType ListenerErrorType, message string) *ListenerError {
-	return &ListenerError{
-		ErrorType: errorType,
-		CustomError: errors.CustomError{
+func newListenerError(errorType ListenerErrorType, message string, internalError error) ListenerError {
+	return &listenerError{
+		CustomizableError: errors.CustomizableError{
 			Message:       message,
-			InternalError: nil,
-		}}
+			InternalError: internalError,
+		},
+		ErrorType: errorType,
+	}
+}
+
+func (e *listenerError) GetErrorType() ListenerErrorType {
+	return e.ErrorType
 }
 
 type ListenerErrorType uint8
@@ -31,15 +41,9 @@ type listenerErrorPipe struct{}
 func (listenerErrorPipe *listenerErrorPipe) Pipe(err error) error {
 	resultError := err
 
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); errType != reflect.TypeOf(&ListenerError{}) {
-		errorType := UnexpectedError
-		resultError = &ListenerError{
-			CustomError: errors.CustomError{
-				Message:       err.Error(),
-				InternalError: err,
-			},
-			ErrorType: errorType,
-		}
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*ListenerError)(nil)).Elem()) {
+		resultError = newListenerError(UnexpectedError, err.Error(), err)
 	}
+
 	return resultError
 }

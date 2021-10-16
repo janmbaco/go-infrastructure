@@ -49,12 +49,12 @@ func (lb *listenerBuilder) SetGrpcDefinitions(grpcDefinitionsFunc GrpcDefinition
 func (lb *listenerBuilder) GetListener() Listener {
 	defer lb.errorDefer.TryThrowError()
 	if lb.bootstrapperFunc == nil {
-		panic(newListenerBuilderError(NilBootstraperError, "bootsrapper function is not set"))
+		panic(newListenerBuilderError(NilBootstraperError, "bootsrapper function is not set", nil))
 	}
 	serverSetter := &ServerSetter{IsChecking: true}
 	lb.bootstrapperFunc(lb.configHandler.GetConfig(), serverSetter)
 	if serverSetter.ServerType == GRpcSever && lb.grpcDefinitionsFunc == nil {
-		panic(newListenerBuilderError(NilGrpcDefinitionsError, "grpc definitions function is not set"))
+		panic(newListenerBuilderError(NilGrpcDefinitionsError, "grpc definitions function is not set", nil))
 	}
 	listener := newListener(lb.configHandler, lb.logger, lb.errorCatcher, lb.errorThrower, lb.bootstrapperFunc, lb.grpcDefinitionsFunc)
 	lb.bootstrapperFunc = nil

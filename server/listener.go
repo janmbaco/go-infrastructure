@@ -150,7 +150,7 @@ func (l *listener) startLoop() {
 }
 func (l *listener) initializeServer() {
 	if l.serverSetter.Addr == "" {
-		panic(newListenerError(AddressNotConfigured, "address not configured"))
+		panic(newListenerError(AddressNotConfigured, "address not configured", nil))
 	}
 	switch l.serverSetter.ServerType {
 	case HttpServer:

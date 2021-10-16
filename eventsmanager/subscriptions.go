@@ -31,13 +31,7 @@ func (s *subscriptions) Add(event EventObject, subscribeFunc interface{}) {
 	functionValue := reflect.Indirect(reflect.ValueOf(subscribeFunc))
 	functionType := reflect.Indirect(reflect.ValueOf(subscribeFunc)).Type()
 	if functionType != event.GetTypeOfFunc() {
-		panic(&SubscriptionsError{
-			CustomError: errors.CustomError{
-				Message:       "the function hasn´t the correct signature",
-				InternalError: nil,
-			},
-			ErrorType: BadFunctionSignature,
-		})
+		panic(newSubscriptionsError(BadFunctionSignature, "the function hasn´t the correct signature", nil))
 	}
 	pointer := reflect.ValueOf(subscribeFunc).Pointer()
 
@@ -66,13 +60,7 @@ func (s *subscriptions) Remove(event EventObject, subscribeFunc interface{}) {
 	}
 
 	if showError {
-		panic(&SubscriptionsError{
-			CustomError: errors.CustomError{
-				Message:       "this function is not registered",
-				InternalError: nil,
-			},
-			ErrorType: FunctionNoSubscribed,
-		})
+		panic(newSubscriptionsError(FunctionNoSubscribed, "this function is not registered", nil))
 	}
 }
 

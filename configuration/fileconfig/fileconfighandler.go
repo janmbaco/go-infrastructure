@@ -109,7 +109,7 @@ func (f *fileConfigHandler) CanRestore() bool {
 func (f *fileConfigHandler) Restore() {
 	defer f.errorDefer.TryThrowError()
 	if !f.CanRestore() {
-		panic(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil"))
+		panic(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil", nil))
 	}
 	f.newConfig = f.createConfig()
 	errorschecker.TryPanic(copier.Copy(f.newConfig, f.dataconfig))
