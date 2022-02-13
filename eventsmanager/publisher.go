@@ -14,7 +14,7 @@ type Publisher interface {
 
 type (
 	publisher struct {
-		subscriptions   Subscriptions
+		subscriptions   SubscriptionsGetter
 		eventPublishers sync.Map
 		errorCatcher    errors.ErrorCatcher
 	}
@@ -25,7 +25,7 @@ type (
 )
 
 // NewPublisher returns a Publisher
-func NewPublisher(subscriptions Subscriptions, errorCatcher errors.ErrorCatcher) Publisher {
+func NewPublisher(subscriptions SubscriptionsGetter, errorCatcher errors.ErrorCatcher) Publisher {
 	errorschecker.CheckNilParameter(map[string]interface{}{"subscriptions": subscriptions, "errorCatcher": errorCatcher})
 	return &publisher{subscriptions: subscriptions, errorCatcher: errorCatcher}
 }
@@ -36,7 +36,6 @@ func (p *publisher) Publish(event EventObject) {
 	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
 	ePublisher, _ := p.eventPublishers.LoadOrStore(typ, &eventPublisher{isPublishing: make(chan bool, 1), errorCatcher: p.errorCatcher})
 	ePublisher.(*eventPublisher).publish(event, p.subscriptions.GetAlls(event))
-
 }
 
 func (e *eventPublisher) publish(event EventObject, functions []reflect.Value) {

@@ -22,14 +22,15 @@ func newResolver(dependencies Dependencies) Resolver {
 // Type gets a dependency by the interface and params
 func (r *resolver) Type(iface interface{}, params map[string]interface{}) interface{} {
 	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface})
-	return r.dependencies.Get(DependencyKey{iface: reflect.Indirect(reflect.ValueOf(iface)).Type()}).autoResolve(params, r.dependencies)
+	return r.dependencies.Get(DependencyKey{Iface:reflect.Indirect(reflect.ValueOf(iface)).Type()}).Create(params, r.dependencies, make(map[DependencyObject]interface{}))
 }
 
 // Tenant gets a dependency by the interface, the tenant key and paramas
 func (r *resolver) Tenant(tenant string, iface interface{}, params map[string]interface{}) interface{} {
 	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface})
+
 	return r.dependencies.Get(DependencyKey{
-		tenant: tenant,
-		iface:  reflect.Indirect(reflect.ValueOf(iface)).Type(),
-	}).autoResolve(params, r.dependencies)
+		Tenant: tenant,
+		Iface: reflect.Indirect(reflect.ValueOf(iface)).Type(),
+	}).Create(params, r.dependencies, make(map[DependencyObject]interface{}))
 }

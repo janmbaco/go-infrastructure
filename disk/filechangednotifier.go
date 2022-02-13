@@ -23,12 +23,11 @@ type (
 )
 
 // NewFileChangedNotifier returns a FileChangedNotifier
-func NewFileChangedNotifier(filePath string, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower) FileChangedNotifier {
-	errorschecker.CheckNilParameter(map[string]interface{}{"errorThrower": errorThrower})
+func NewFileChangedNotifier(filePath string, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower, subscriptions eventsmanager.Subscriptions, publisher eventsmanager.Publisher) FileChangedNotifier {
+	errorschecker.CheckNilParameter(map[string]interface{}{"errorCatcher":errorCatcher, "errorThrower": errorThrower, "subscriptions": subscriptions, "publisher": publisher})
 	watcher, err := fsnotify.NewWatcher()
 	errorschecker.TryPanic(err)
-	subscriptions := eventsmanager.NewSubscriptions(errorThrower)
-	return &fileChangedNotifier{file: filePath, watcher: watcher, subscriptions: subscriptions, eventPublisher: eventsmanager.NewPublisher(subscriptions, errorCatcher)}
+	return &fileChangedNotifier{file: filePath, watcher: watcher, subscriptions: subscriptions, eventPublisher: publisher}
 }
 
 // Subscribe subscribes a functio to observe changes of a file

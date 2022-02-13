@@ -1,16 +1,15 @@
 package orm_base_test
 
 import (
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
 	"github.com/janmbaco/go-infrastructure/disk"
-	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
-	"github.com/janmbaco/go-infrastructure/logs"
 	"github.com/janmbaco/go-infrastructure/persistence/orm_base"
-	"github.com/janmbaco/go-infrastructure/persistence/orm_base/dialectors"
 	"gorm.io/gorm"
 	"reflect"
 	"testing"
+	
+	errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
+	ormbaseResolver "github.com/janmbaco/go-infrastructure/persistence/orm_base/ioc/resolver"
 )
 
 type Email struct {
@@ -18,6 +17,7 @@ type Email struct {
 	Name   string
 	Mail   string
 	UserID uint
+	User User  
 }
 
 type User struct {
@@ -26,41 +26,27 @@ type User struct {
 	Emails []*Email
 }
 
-func registerFacade(register dependencyinjection.Register) {
-	register.AsSingleton(new(logs.Logger), logs.NewLogger, nil)
-	register.Bind(new(logs.ErrorLogger), new(logs.Logger))
-	register.AsSingleton(new(errors.ErrorCatcher), errors.NewErrorCatcher, nil)
-	register.AsSingleton(new(errors.ErrorManager), errors.NewErrorManager, nil)
-	register.Bind(new(errors.ErrorCallbacks), new(errors.ErrorManager))
-	register.AsSingleton(new(errors.ErrorThrower), errors.NewErrorThrower, nil)
-
-	register.AsSingletonTenant(orm_base.Sqlite.ToString(), new(orm_base.DialectorGetter), dialectors.NewSqliteDialectorGetter, nil)
-	register.AsSingleton(new(orm_base.DialectorResolver), orm_base.NewDialectorResolver, nil)
-	register.AsSingleton(new(*gorm.DB), orm_base.NewDB, map[uint]string{1: "info", 2: "config", 3: "tables"})
-	register.AsType(new(orm_base.DataAccess), orm_base.NewDataAccess, map[uint]string{2: "modelType"})
-}
 
 func TestDatabase(t *testing.T) {
-	container := dependencyinjection.NewContainer()
-	registerFacade(container.Register())
 
-	errorCatcher := container.Resolver().Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
-	errorCatcher.TryCatchError(func() {
-		gormDB := container.Resolver().Type(new(*gorm.DB), map[string]interface{}{
-			"info": &orm_base.DatabaseInfo{
+	errorsResolver.GetErrorCatcher().TryCatchError(func() {
+		gormDB := ormbaseResolver.GetgormDB(
+			&orm_base.DatabaseInfo{
 				Engine: orm_base.Sqlite,
 				Host:   "sqlitedb",
-			},
-			"config": &gorm.Config{},
-			"tables": []interface{}{
+			}, 
+			&gorm.Config{},
+			[]interface{}{
 				&Email{},
 				&User{},
 			},
-		}).(*gorm.DB)
+		 )
 		db, err := gormDB.DB()
 		errorschecker.TryPanic(err)
-		errorCatcher.TryFinally(func() {
-			userDAO := container.Resolver().Type(new(orm_base.DataAccess), map[string]interface{}{"modelType": reflect.TypeOf(&User{})}).(orm_base.DataAccess)
+
+		errorsResolver.GetErrorCatcher().TryFinally(func() {
+			
+			userDAO := ormbaseResolver.GetDataAccess( reflect.TypeOf(&User{}))
 
 			userDAO.Insert(&User{Name: "Jose", Emails: []*Email{{Name: "Jose", Mail: "yuhu@yuhu.es"}}})
 			userDAO.Insert(&User{Name: "Juan", Emails: []*Email{{Name: "Juan", Mail: "yuhu@yuhu.es"}}})

@@ -7,11 +7,15 @@ import (
 	"sync"
 )
 
+type SubscriptionsGetter interface {
+	GetAlls(event EventObject) []reflect.Value
+}
+
 // Subscriptions is the definition of a object responsible to store subscriptions for an event
 type Subscriptions interface {
+	SubscriptionsGetter
 	Add(event EventObject, subscribeFunc interface{})
 	Remove(event EventObject, subscribeFunc interface{})
-	GetAlls(event EventObject) []reflect.Value
 }
 
 type subscriptions struct {
@@ -35,14 +39,14 @@ func (s *subscriptions) Add(event EventObject, subscribeFunc interface{}) {
 	}
 	pointer := reflect.ValueOf(subscribeFunc).Pointer()
 
-	var subscriptions interface{}
+	var subscription interface{}
 	var isContained bool
 
 	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
-	if subscriptions, isContained = s.events.Load(typ); !isContained {
-		subscriptions, _ = s.events.LoadOrStore(typ, &sync.Map{})
+	if subscription, isContained = s.events.Load(typ); !isContained {
+		subscription, _ = s.events.LoadOrStore(typ, &sync.Map{})
 	}
-	subscriptions.(*sync.Map).Store(pointer, functionValue)
+	subscription.(*sync.Map).Store(pointer, functionValue)
 
 }
 
