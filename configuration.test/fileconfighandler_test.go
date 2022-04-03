@@ -2,16 +2,17 @@ package configuration_test
 
 import (
 	"encoding/json"
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/configuration/events"
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	dependencyinjectiontest "github.com/janmbaco/go-infrastructure/dependencyinjection.test"
-	"github.com/janmbaco/go-infrastructure/disk"
-	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/janmbaco/go-infrastructure/configuration/events"
+	"github.com/janmbaco/go-infrastructure/disk"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
+	
+	errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
+	fileConfigResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
+	diskResolver "github.com/janmbaco/go-infrastructure/disk/ioc/resolver"
 )
 
 type configFile struct {
@@ -25,19 +26,10 @@ var GoodOtions = "Good Options"
 var CancelMessage = "Is Bad Options"
 
 func TestNewFileConfigHandler(t *testing.T) {
-	container := dependencyinjection.NewContainer()
-	dependencyinjectiontest.Registerfacade(container.Register())
 
-	errorCatcher := container.Resolver().Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
-	errorCatcher.TryCatchErrorAndFinally(func() {
-		configHandler := container.Resolver().Type(
-			new(configuration.ConfigHandler),
-			map[string]interface{}{
-				"filePath": filePath,
-				"defaults": &configFile{Options: initialOptions},
-			},
-		).(configuration.ConfigHandler)
+	 errorsResolver.GetErrorCatcher().TryCatchErrorAndFinally(func() {
 
+		configHandler := fileConfigResolver.GetFileConfigHandler(filePath, &configFile{Options: initialOptions}, diskResolver.GetFileChangedNotifier(filePath))
 		wg := sync.WaitGroup{}
 		wg.Add(1)
 

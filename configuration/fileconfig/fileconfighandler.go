@@ -2,18 +2,18 @@ package fileconfig
 
 import (
 	"encoding/json"
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/configuration/events"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
 	"time"
-
+	
 	"github.com/janmbaco/copier"
+	"github.com/janmbaco/go-infrastructure/configuration"
+	"github.com/janmbaco/go-infrastructure/configuration/events"
 	"github.com/janmbaco/go-infrastructure/disk"
 	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/eventsmanager"
 )
 
@@ -30,7 +30,6 @@ type fileConfigHandler struct {
 	newConfig              interface{}
 	isFreezed              bool
 	fromFile               interface{}
-	onModifiedConfigFileFn func()
 	publisher              eventsmanager.Publisher
 	period                 configuration.Period
 	errorCatcher           errors.ErrorCatcher
@@ -39,14 +38,13 @@ type fileConfigHandler struct {
 }
 
 // NewFileConfigHandler returns a ConfigHandler
-func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower) configuration.ConfigHandler {
-	errorschecker.CheckNilParameter(map[string]interface{}{"defaults": defaults, "errorCatcher": errorCatcher, "errorThrower": errorThrower})
+func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower, subscriptions eventsmanager.Subscriptions, publisher eventsmanager.Publisher, filechangeNotifier disk.FileChangedNotifier) configuration.ConfigHandler {
+	errorschecker.CheckNilParameter(map[string]interface{}{"defaults": defaults, "errorCatcher": errorCatcher, "errorThrower": errorThrower, "subscriptions": subscriptions, "publisher": publisher, "filechangeNotifier": filechangeNotifier})
 
-	subscriptions := eventsmanager.NewSubscriptions(errorThrower)
 	errorHandler := errors.NewErrorDefer(errorThrower, &fileConfigHandleErrorPipe{})
 	fileConfigHandler := &fileConfigHandler{
 		filePath:                         filePath,
-		publisher:                        eventsmanager.NewPublisher(subscriptions, errorCatcher),
+		publisher:                        publisher,
 		ModifiedEventHandler:             events.NewModifiedEventHandler(subscriptions),
 		ModifyingEventHandler:            events.NewModifyingEventHandler(subscriptions),
 		RestoredEventHandler:             events.NewRestoredEventHandler(subscriptions),
@@ -60,7 +58,7 @@ func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher er
 	if !disk.ExistsPath(fileConfigHandler.filePath) {
 		fileConfigHandler.writeFile()
 	}
-	disk.NewFileChangedNotifier(fileConfigHandler.filePath, errorCatcher, errorThrower).Subscribe(fileConfigHandler.onModifiedConfigFile)
+	filechangeNotifier.Subscribe(fileConfigHandler.onModifiedConfigFile)
 	fileConfigHandler.readFile()
 	if !reflect.DeepEqual(fileConfigHandler.fromFile, fileConfigHandler.dataconfig) {
 		errorschecker.TryPanic(copier.Copy(fileConfigHandler.dataconfig, fileConfigHandler.fromFile))
@@ -183,14 +181,18 @@ func (f *fileConfigHandler) recoveryFile() {
 }
 
 func (f *fileConfigHandler) refreshLoop() {
-	for {
+	exit := false
+	for{
 		select {
 		case <-time.After(time.Minute):
 			if f.period.IsFinished() {
 				f.ForceRefresh()
 			}
 		case <-f.stopRefresh:
-			break
+			exit = true
+		}
+		if exit {
+			break;
 		}
 	}
 }
