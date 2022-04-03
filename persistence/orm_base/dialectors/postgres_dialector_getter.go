@@ -17,5 +17,5 @@ func NewPostgresDialectorGetter() orm_base.DialectorGetter {
 
 func (dialectorGetter *postgresDialectorGetter) Get(info *orm_base.DatabaseInfo) gorm.Dialector {
 	errorschecker.CheckNilParameter(map[string]interface{}{"info": info})
-	return postgres.Open(fmt.Sprintf("host=%v port=%v user=%v dbname=%v password=%v\"", info.Host, info.Port, info.UserName, info.Name, info.UserPassword))
+	return postgres.Open(fmt.Sprintf("host=%v port=%v user=%v dbname=%v password=%v", info.Host, info.Port, info.UserName, info.Name, info.UserPassword))
 }
