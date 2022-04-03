@@ -75,7 +75,7 @@ func TestDatabase(t *testing.T) {
 			users = userDAO.Select(&User{Name: "huy"}, "Emails").([]*User)
 
 			if len(users) != 1 || users[0].Name != "huy" {
-				t.Error("The User is not update.")
+				t.Error("The User is not updated.")
 			} else if users[0].Emails[0].Name != "Jose" {
 				t.Error("The Emails associated are not preloaded")
 			}
