@@ -5,7 +5,6 @@ import (
 	"github.com/janmbaco/go-infrastructure/server"
 
 	fileConfigResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
-	diskResolver "github.com/janmbaco/go-infrastructure/disk/ioc/resolver"
 	serverResolver "github.com/janmbaco/go-infrastructure/server/ioc/resolver"
 )
 
@@ -28,13 +27,12 @@ func SinglePageAppStart(port string, staticPath string, index string) {
 					StaticPath: staticPath,
 					Index:      index,
 				},
-				diskResolver.GetFileChangedNotifier("config.json"),
 			),
 		).
 
 		// the bootstraper function is performed
-		//every time the configuration is modified
-		//hence the data is retrieved from the configuration again.
+		// every time the configuration is modified
+		// hence the data is retrieved from the configuration again.
 		SetBootstrapper(func(config interface{}, serverSetter *server.ServerSetter) {
 			serverSetter.Handler = server.NewSinglePageApp(config.(*conf).StaticPath,config.(*conf).Index) 
 			serverSetter.Addr = config.(*conf).Port

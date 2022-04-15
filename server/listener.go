@@ -3,19 +3,21 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"net"
+	"net/http"
+	"reflect"
+
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/logs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"net"
-	"net/http"
 )
 
 type (
 	Listener interface {
-		Start() chan bool
+		Start() chan ListenerError
 		Stop()
 	}
 
@@ -51,7 +53,7 @@ type (
 		started             chan bool
 		stop                chan bool
 		stopped             bool
-		finish              chan bool
+		finish              chan ListenerError
 		isBusy              chan bool
 	}
 )
@@ -61,23 +63,22 @@ const (
 	GRpcSever
 )
 
-func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower, bootstrapperFunc BootstrapperFunc, grpdDefinitionsFunc GrpcDefinitionsFunc) Listener {
-	errorschecker.CheckNilParameter(map[string]interface{}{"configHandler": configHandler, "logger": logger, "errorCatcher": errorCatcher, "errorThrower": errorThrower, "bootstrapperFunc": bootstrapperFunc})
+func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, errorCatcher errors.ErrorCatcher, errorDefer errors.ErrorDefer, bootstrapperFunc BootstrapperFunc, grpdDefinitionsFunc GrpcDefinitionsFunc) Listener {
+	errorschecker.CheckNilParameter(map[string]interface{}{"configHandler": configHandler, "logger": logger, "errorCatcher": errorCatcher, "errorDefer": errorDefer, "bootstrapperFunc": bootstrapperFunc})
 	listener := &listener{
 		configHandler:       configHandler,
 		logger:              logger,
 		errorCatcher:        errorCatcher,
+		errorDefer: 		 errorDefer,
 		serverSetter:        &ServerSetter{},
 		bootstrapperFunc:    bootstrapperFunc,
 		grpcDefinitionsFunc: grpdDefinitionsFunc,
 		start:               make(chan bool, 1),
 		started:             make(chan bool, 1),
 		stop:                make(chan bool, 1),
-		finish:              make(chan bool, 1),
+		finish:              make(chan ListenerError, 1),
 		isBusy:              make(chan bool, 1),
 	}
-
-	listener.errorDefer = errors.NewErrorDefer(errorThrower, &listenerErrorPipe{})
 	restoredConfig := listener.onRestoredConfig
 	modifiedConfig := listener.onModifiedConfig
 
@@ -86,7 +87,7 @@ func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, 
 	return listener
 }
 
-func (l *listener) Start() chan bool {
+func (l *listener) Start() chan ListenerError {
 	l.stopped = false
 	go l.startLoop()
 	l.start <- true
@@ -95,7 +96,7 @@ func (l *listener) Start() chan bool {
 }
 
 func (l *listener) Stop() {
-	defer l.errorDefer.TryThrowError()
+	defer l.errorDefer.TryThrowError(l.pipeError)
 	l.isBusy <- true
 	l.logger.Infof("%v - Server Stop", l.serverSetter.Name)
 	l.stopServer()
@@ -104,7 +105,7 @@ func (l *listener) Stop() {
 }
 
 func (l *listener) startLoop() {
-	defer l.errorDefer.TryThrowError()
+	defer l.errorDefer.TryThrowError(l.pipeError)
 	for {
 		select {
 		case <-l.start:
@@ -134,14 +135,14 @@ func (l *listener) startLoop() {
 					if l.configHandler.CanRestore() {
 						go l.configHandler.Restore()
 					} else {
-						panic(err)
+						l.finish <- l.pipeError(err).(ListenerError)
+						l.stopped = true
 					}
 				}
 			})
 		case <-l.stop:
-			l.finish <- true
+			l.finish <- nil
 			l.stopped = true
-			break
 		}
 		if l.stopped {
 			break
@@ -186,7 +187,7 @@ func (l *listener) stopServer() {
 }
 
 func (l *listener) restart() {
-	defer l.errorDefer.TryThrowError()
+	defer l.errorDefer.TryThrowError(l.pipeError)
 	l.isBusy <- true
 	if !l.stopped {
 		l.logger.Tracef("%v Restart Server", l.serverSetter.Name)
@@ -205,4 +206,14 @@ func (l *listener) onRestoredConfig() {
 func (l *listener) onModifiedConfig() {
 	l.logger.Tracef("%v - Modified config", l.serverSetter.Name)
 	l.restart()
+}
+
+func (l *listener) pipeError(err error) error {
+	resultError := err
+
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*ListenerError)(nil)).Elem()) {
+		resultError = newListenerError(UnexpectedError, err.Error(), err)
+	}
+
+	return resultError
 }

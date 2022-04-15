@@ -3,7 +3,6 @@ package resolver
 import (
 	
 	"github.com/janmbaco/go-infrastructure/dependencyinjection/static"
-	_ "github.com/janmbaco/go-infrastructure/errors/ioc"
 	_ "github.com/janmbaco/go-infrastructure/eventsmanager/ioc"
 	_ "github.com/janmbaco/go-infrastructure/disk/ioc"
 

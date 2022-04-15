@@ -2,7 +2,6 @@ package orm_base
 
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
-	"reflect"
 )
 
 type DataBaseError interface {
@@ -38,14 +37,4 @@ const (
 	DataFilterUnexpected
 )
 
-type databaseErrorPipe struct{}
 
-func (*databaseErrorPipe) Pipe(err error) error {
-	resultError := err
-
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*DataBaseError)(nil)).Elem()) {
-		resultError = newDataBaseError(UnexpectedError, err.Error(), err)
-	}
-
-	return resultError
-}

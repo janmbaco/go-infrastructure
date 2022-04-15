@@ -2,7 +2,6 @@ package disk
 
 import (
 	"github.com/fsnotify/fsnotify"
-	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/eventsmanager"
 )
@@ -23,8 +22,8 @@ type (
 )
 
 // NewFileChangedNotifier returns a FileChangedNotifier
-func NewFileChangedNotifier(filePath string, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower, subscriptions eventsmanager.Subscriptions, publisher eventsmanager.Publisher) FileChangedNotifier {
-	errorschecker.CheckNilParameter(map[string]interface{}{"errorCatcher":errorCatcher, "errorThrower": errorThrower, "subscriptions": subscriptions, "publisher": publisher})
+func NewFileChangedNotifier(filePath string, subscriptions eventsmanager.Subscriptions, publisher eventsmanager.Publisher) FileChangedNotifier {
+	errorschecker.CheckNilParameter(map[string]interface{}{ "subscriptions": subscriptions, "publisher": publisher})
 	watcher, err := fsnotify.NewWatcher()
 	errorschecker.TryPanic(err)
 	return &fileChangedNotifier{file: filePath, watcher: watcher, subscriptions: subscriptions, eventPublisher: publisher}

@@ -24,14 +24,15 @@ type subscriptions struct {
 }
 
 // NewSubscriptions returns a Subscriptions
-func NewSubscriptions(thrower errors.ErrorThrower) Subscriptions {
-	return &subscriptions{errorDefer: errors.NewErrorDefer(thrower, &subscriptionsErrorPipe{})}
+func NewSubscriptions(errorDefer errors.ErrorDefer) Subscriptions {
+	errorschecker.CheckNilParameter(map[string]interface{}{"errorDefer": errorDefer})
+	return &subscriptions{errorDefer: errorDefer}
 }
 
 // Add sets a subscription to an event
 func (s *subscriptions) Add(event EventObject, subscribeFunc interface{}) {
+	defer s.errorDefer.TryThrowError(s.pipeError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"event": event, "subscribeFunc": subscribeFunc})
-	defer s.errorDefer.TryThrowError()
 	functionValue := reflect.Indirect(reflect.ValueOf(subscribeFunc))
 	functionType := reflect.Indirect(reflect.ValueOf(subscribeFunc)).Type()
 	if functionType != event.GetTypeOfFunc() {
@@ -52,8 +53,8 @@ func (s *subscriptions) Add(event EventObject, subscribeFunc interface{}) {
 
 // Remove deletes a subscription to an event
 func (s *subscriptions) Remove(event EventObject, subscribeFunc interface{}) {
+	defer s.errorDefer.TryThrowError(s.pipeError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"event": event, "subscribeFunc": subscribeFunc})
-	defer s.errorDefer.TryThrowError()
 	pointer := reflect.ValueOf(subscribeFunc).Pointer()
 	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
 	showError := true
@@ -70,6 +71,7 @@ func (s *subscriptions) Remove(event EventObject, subscribeFunc interface{}) {
 
 // GetAlls gets all subscriptions for an event
 func (s *subscriptions) GetAlls(event EventObject) []reflect.Value {
+	defer s.errorDefer.TryThrowError(s.pipeError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"event": event})
 	result := make([]reflect.Value, 0)
 	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
@@ -80,4 +82,12 @@ func (s *subscriptions) GetAlls(event EventObject) []reflect.Value {
 		})
 	}
 	return result
+}
+
+func (s *subscriptions) pipeError(err error) error {
+	resultError := err
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*SubscriptionsError)(nil)).Elem()) {
+		resultError = newSubscriptionsError(Unexpected, err.Error(), err)
+	}
+	return resultError
 }

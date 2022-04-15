@@ -2,7 +2,6 @@ package eventsmanager
 
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
-	"reflect"
 )
 
 type SubscriptionsError interface {
@@ -35,13 +34,3 @@ const (
 	BadFunctionSignature
 	FunctionNoSubscribed
 )
-
-type subscriptionsErrorPipe struct{}
-
-func (*subscriptionsErrorPipe) Pipe(err error) error {
-	resultError := err
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*SubscriptionsError)(nil)).Elem()) {
-		resultError = newSubscriptionsError(Unexpected, err.Error(), err)
-	}
-	return resultError
-}

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"reflect"
+
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
@@ -18,7 +20,6 @@ type listenerBuilder struct {
 	configHandler       configuration.ConfigHandler
 	logger              logs.Logger
 	errorCatcher        errors.ErrorCatcher
-	errorThrower        errors.ErrorThrower
 	errorDefer          errors.ErrorDefer
 	bootstrapperFunc    BootstrapperFunc
 	grpcDefinitionsFunc GrpcDefinitionsFunc
@@ -26,13 +27,14 @@ type listenerBuilder struct {
 }
 
 // NewListenerBuilder returns a ListenerBuilder
-func NewListenerBuilder(configHandler configuration.ConfigHandler, logger logs.Logger, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower) ListenerBuilder {
-	errorschecker.CheckNilParameter(map[string]interface{}{"configHandler": configHandler, "logger": logger, "errorCatcher": errorCatcher, "errorThrower": errorThrower})
-	return &listenerBuilder{configHandler: configHandler, logger: logger, errorCatcher: errorCatcher, errorThrower: errorThrower, errorDefer: errors.NewErrorDefer(errorThrower, &listenerBuilderErrorPipe{})}
+func NewListenerBuilder(configHandler configuration.ConfigHandler, logger logs.Logger, errorCatcher errors.ErrorCatcher, errorDefer errors.ErrorDefer) ListenerBuilder {
+	errorschecker.CheckNilParameter(map[string]interface{}{"configHandler": configHandler, "logger": logger, "errorCatcher": errorCatcher, "errorDefer": errorDefer})
+	return &listenerBuilder{configHandler: configHandler, logger: logger, errorCatcher: errorCatcher,  errorDefer: errorDefer}
 }
 
 // SetBootstrapper sets the function that serves like bootstraper to the listener start
 func (lb *listenerBuilder) SetBootstrapper(bootstrapperFunc BootstrapperFunc) ListenerBuilder {
+	defer lb.errorDefer.TryThrowError(lb.pipError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"bootstrapperFunc": bootstrapperFunc})
 	lb.bootstrapperFunc = bootstrapperFunc
 	return lb
@@ -40,6 +42,7 @@ func (lb *listenerBuilder) SetBootstrapper(bootstrapperFunc BootstrapperFunc) Li
 
 // SetGrpcDefinitions sets the definitions of grpc function
 func (lb *listenerBuilder) SetGrpcDefinitions(grpcDefinitionsFunc GrpcDefinitionsFunc) ListenerBuilder {
+	defer lb.errorDefer.TryThrowError(lb.pipError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"grpcDefinitionsFunc": grpcDefinitionsFunc})
 	lb.grpcDefinitionsFunc = grpcDefinitionsFunc
 	return lb
@@ -47,7 +50,7 @@ func (lb *listenerBuilder) SetGrpcDefinitions(grpcDefinitionsFunc GrpcDefinition
 
 // GetListener gets the listener
 func (lb *listenerBuilder) GetListener() Listener {
-	defer lb.errorDefer.TryThrowError()
+	defer lb.errorDefer.TryThrowError(lb.pipError)
 	if lb.bootstrapperFunc == nil {
 		panic(newListenerBuilderError(NilBootstraperError, "bootsrapper function is not set", nil))
 	}
@@ -56,8 +59,17 @@ func (lb *listenerBuilder) GetListener() Listener {
 	if serverSetter.ServerType == GRpcSever && lb.grpcDefinitionsFunc == nil {
 		panic(newListenerBuilderError(NilGrpcDefinitionsError, "grpc definitions function is not set", nil))
 	}
-	listener := newListener(lb.configHandler, lb.logger, lb.errorCatcher, lb.errorThrower, lb.bootstrapperFunc, lb.grpcDefinitionsFunc)
+	listener := newListener(lb.configHandler, lb.logger, lb.errorCatcher, lb.errorDefer, lb.bootstrapperFunc, lb.grpcDefinitionsFunc)
 	lb.bootstrapperFunc = nil
 	lb.grpcDefinitionsFunc = nil
 	return listener
 }
+
+func (lb *listenerBuilder) pipError(err error) error {
+	resultError := err
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*ListenerBuilderError)(nil)).Elem()) {
+		resultError = newListenerBuilderError(UnexpectedBuilderError, err.Error(), err)
+	}
+	return resultError
+}
+

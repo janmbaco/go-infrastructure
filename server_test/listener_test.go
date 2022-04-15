@@ -11,7 +11,6 @@ import (
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 
 	fileConfigResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
-	diskResolver "github.com/janmbaco/go-infrastructure/disk/ioc/resolver"
 	errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
 	serverResolver "github.com/janmbaco/go-infrastructure/server/ioc/resolver"
 )
@@ -26,14 +25,13 @@ var address = ":8080"
 var address2 = ":8090"
 
 func TestNewListener(t *testing.T) {
-
+	
 	errorsResolver.GetErrorCatcher().TryFinally(func() {
 
 		builder := serverResolver.GetListenerBuilder(
 			fileConfigResolver.GetFileConfigHandler(
 				filePath,  
 				&configFile{Address: address, Address2: address2}, 
-				diskResolver.GetFileChangedNotifier(filePath),
 			),
 		) 
 
@@ -63,12 +61,15 @@ func TestNewListener(t *testing.T) {
 		finishListener2 := listener2.Start()
 		PutTheSamePortInConfig()
 		go func() {
-			<-time.After(10 * time.Millisecond)
+			<-time.After(50 * time.Millisecond)
 			listener.Stop()
 			listener2.Stop()
 		}()
-		<-finishListener
-		<-finishListener2
+		err1 := <-finishListener
+		err2 := <-finishListener2
+		errorschecker.TryPanic(err1)
+		errorschecker.TryPanic(err2)
+
 	}, func() {
 		disk.DeleteFile(filePath)
 	})

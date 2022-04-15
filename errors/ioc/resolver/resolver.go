@@ -10,3 +10,7 @@ import (
 func GetErrorCatcher() errors.ErrorCatcher {
  	return static.Container.Resolver().Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
 }
+
+func GetErrorManager() errors.ErrorManager {
+	return static.Container.Resolver().Type(new(errors.ErrorManager), nil).(errors.ErrorManager)
+}

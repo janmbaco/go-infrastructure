@@ -2,7 +2,6 @@ package server
 
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
-	"reflect"
 )
 
 // ListenerBuilderError is the errors of ListenerBuilder
@@ -38,12 +37,3 @@ const (
 	NilGrpcDefinitionsError
 )
 
-type listenerBuilderErrorPipe struct{}
-
-func (listenerErrorPipe *listenerBuilderErrorPipe) Pipe(err error) error {
-	resultError := err
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*ListenerBuilderError)(nil)).Elem()) {
-		resultError = newListenerBuilderError(UnexpectedBuilderError, err.Error(), err)
-	}
-	return resultError
-}

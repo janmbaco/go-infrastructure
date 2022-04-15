@@ -1,9 +1,10 @@
 package errors
 
 import (
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"reflect"
 	"sync"
+
+	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 )
 
 type (
@@ -13,7 +14,7 @@ type (
 	}
 	// ErrorManager is the definition of a object responsible to set callbacks to error definitions
 	ErrorManager interface {
-		On(err error, callback func(err error))
+		On(err interface{}, callback func(err error))
 	}
 )
 type errorManager struct {
@@ -28,14 +29,24 @@ func NewErrorManager() ErrorManager {
 // GetCallback gets the callback from a error
 func (e *errorManager) GetCallback(err error) func(err error) {
 	errorschecker.CheckNilParameter(map[string]interface{}{"err": err})
-	if fn, ok := e.errorCallbacks.Load(reflect.Indirect(reflect.ValueOf(err)).Type()); ok {
-		return fn.(reflect.Value).Interface().(func(err error))
-	}
-	return nil
+	var fn func(err error)
+	e.errorCallbacks.Range(func(key, value interface{}) bool {
+		t :=reflect.TypeOf(err)
+		if t.Implements(key.(reflect.Type)){
+			fn = value.(reflect.Value).Interface().(func(err error))
+			return false
+		}
+		return true
+	})
+	return fn
 }
 
 // On register a callback to an error
-func (e *errorManager) On(err error, callback func(err error)) {
+func (e *errorManager) On(err interface{}, callback func(err error)) {
 	errorschecker.CheckNilParameter(map[string]interface{}{"err": err, "callback": callback})
-	e.errorCallbacks.LoadOrStore(reflect.Indirect(reflect.ValueOf(err)).Type(), reflect.ValueOf(callback))
+	t := reflect.Indirect(reflect.ValueOf(err)).Type()
+	if !t.Implements(reflect.TypeOf((*error)(nil)).Elem()){
+		panic("The parameter 'err' not implement's error interface")
+	}
+	e.errorCallbacks.LoadOrStore(t, reflect.ValueOf(callback))
 }

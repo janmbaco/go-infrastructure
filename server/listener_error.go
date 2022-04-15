@@ -2,7 +2,6 @@ package server
 
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
-	"reflect"
 )
 
 type ListenerError interface {
@@ -36,14 +35,3 @@ const (
 	AddressNotConfigured
 )
 
-type listenerErrorPipe struct{}
-
-func (listenerErrorPipe *listenerErrorPipe) Pipe(err error) error {
-	resultError := err
-
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*ListenerError)(nil)).Elem()) {
-		resultError = newListenerError(UnexpectedError, err.Error(), err)
-	}
-
-	return resultError
-}

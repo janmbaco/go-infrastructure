@@ -70,7 +70,7 @@ func NewLogger() Logger {
 			"FATAL: "}
 		return log.New(writer,
 			levels[level],
-			log.Ldate|log.Ltime)
+			log.Ldate|log.Lmicroseconds)
 	}
 	registerLogger := func(consoleWriter io.Writer, levels ...LogLevel) {
 		for _, level := range levels {

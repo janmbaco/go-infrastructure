@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"time"
-	
-	"github.com/janmbaco/copier"
+
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/configuration/events"
 	"github.com/janmbaco/go-infrastructure/disk"
 	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/eventsmanager"
+	"github.com/jinzhu/copier"
 )
 
 const maxTries = 10
@@ -38,10 +38,8 @@ type fileConfigHandler struct {
 }
 
 // NewFileConfigHandler returns a ConfigHandler
-func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher errors.ErrorCatcher, errorThrower errors.ErrorThrower, subscriptions eventsmanager.Subscriptions, publisher eventsmanager.Publisher, filechangeNotifier disk.FileChangedNotifier) configuration.ConfigHandler {
-	errorschecker.CheckNilParameter(map[string]interface{}{"defaults": defaults, "errorCatcher": errorCatcher, "errorThrower": errorThrower, "subscriptions": subscriptions, "publisher": publisher, "filechangeNotifier": filechangeNotifier})
-
-	errorHandler := errors.NewErrorDefer(errorThrower, &fileConfigHandleErrorPipe{})
+func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher errors.ErrorCatcher, errorDefer errors.ErrorDefer, subscriptions eventsmanager.Subscriptions, publisher eventsmanager.Publisher, filechangeNotifier disk.FileChangedNotifier) configuration.ConfigHandler {
+	errorschecker.CheckNilParameter(map[string]interface{}{"defaults": defaults, "errorCatcher": errorCatcher, "errorDefer": errorDefer, "subscriptions": subscriptions, "publisher": publisher, "filechangeNotifier": filechangeNotifier})
 	fileConfigHandler := &fileConfigHandler{
 		filePath:                         filePath,
 		publisher:                        publisher,
@@ -51,7 +49,7 @@ func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher er
 		ModificationCanceledEventHandler: events.NewModificationCanceledEventHandler(subscriptions),
 		errorCatcher:                     errorCatcher,
 		stopRefresh:                      make(chan bool, 1),
-		errorDefer:                       errorHandler,
+		errorDefer:                       errorDefer,
 	}
 	fileConfigHandler.dataconfig = reflect.New(reflect.TypeOf(defaults).Elem()).Interface()
 	errorschecker.TryPanic(copier.Copy(fileConfigHandler.dataconfig, defaults))
@@ -69,7 +67,7 @@ func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher er
 // SetRefreshTime sets the period to refresh the config
 func (f *fileConfigHandler) SetRefreshTime(period configuration.Period) {
 	errorschecker.CheckNilParameter(map[string]interface{}{"period": period})
-	defer f.errorDefer.TryThrowError()
+	defer f.errorDefer.TryThrowError(f.pipeError)
 	f.stopRefresh <- true
 	f.period = period
 	go f.refreshLoop()
@@ -92,7 +90,7 @@ func (f *fileConfigHandler) GetConfig() interface{} {
 
 // ForceRefresh forces a refresh of the configuration
 func (f *fileConfigHandler) ForceRefresh() {
-	defer f.errorDefer.TryThrowError()
+	defer f.errorDefer.TryThrowError(f.pipeError)
 	if f.newConfig != nil && !reflect.DeepEqual(f.newConfig, f.dataconfig) {
 		errorschecker.TryPanic(copier.Copy(f.dataconfig, f.newConfig))
 	}
@@ -105,7 +103,7 @@ func (f *fileConfigHandler) CanRestore() bool {
 
 // Restore restores the configuration to an older version
 func (f *fileConfigHandler) Restore() {
-	defer f.errorDefer.TryThrowError()
+	defer f.errorDefer.TryThrowError(f.pipeError)
 	if !f.CanRestore() {
 		panic(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil", nil))
 	}
@@ -195,4 +193,14 @@ func (f *fileConfigHandler) refreshLoop() {
 			break;
 		}
 	}
+}
+
+func (f *fileConfigHandler) pipeError(err error) error {
+	resultError := err
+
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*FileConfigHandlerError)(nil)).Elem()) {
+		resultError = newFileConfigHandlerError(UnexpectedError, err.Error(), err)
+	}
+
+	return resultError
 }

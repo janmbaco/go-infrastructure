@@ -9,16 +9,16 @@ import (
 	_ "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
 
 	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/disk"
+	diskResolver "github.com/janmbaco/go-infrastructure/disk/ioc/resolver"
 )
 
-func GetFileConfigHandler(filePath string, defaults interface{}, fileChangedNotifier disk.FileChangedNotifier) configuration.ConfigHandler {
+func GetFileConfigHandler(filePath string, defaults interface{}) configuration.ConfigHandler {
  	return  static.Container.Resolver().Type(
 			new(configuration.ConfigHandler),
 			map[string]interface{}{
 				"filePath": filePath,
 				"defaults": defaults,
-				"fileChangeNotifier": fileChangedNotifier,
+				"fileChangeNotifier": diskResolver.GetFileChangedNotifier(filePath),
 			},
 		).(configuration.ConfigHandler)
 }

@@ -4,28 +4,22 @@ import (
 	"errors"
 )
 
-// ErrorPipe is the definition of a object responsible to pipe an error to another
-type ErrorPipe interface {
-	Pipe(err error) error
-}
-
 // ErrorDefer is the definition of a object responsible to hanles errors
 type ErrorDefer interface {
-	TryThrowError()
+	TryThrowError(fnPipeError func(err error) error)
 }
 
 type errorDefer struct {
 	thrower   ErrorThrower
-	errorPipe ErrorPipe
 }
 
 // NewErrorDefer return a ErrorDefer
-func NewErrorDefer(thrower ErrorThrower, errorPipe ErrorPipe) ErrorDefer {
-	return &errorDefer{thrower: thrower, errorPipe: errorPipe}
+func NewErrorDefer(thrower ErrorThrower) ErrorDefer {
+	return &errorDefer{thrower: thrower}
 }
 
 // TryThrowError throws an error, through the handler, to panic, if error is different from nil
-func (e *errorDefer) TryThrowError() {
+func (e *errorDefer) TryThrowError(fnPipeError func(err error) error)  {
 	if re := recover(); re != nil {
 		err := errors.New("unexpected error")
 		switch re.(type) {
@@ -34,6 +28,9 @@ func (e *errorDefer) TryThrowError() {
 		case error:
 			err = re.(error)
 		}
-		e.thrower.Throw(e.errorPipe.Pipe(err))
+		if (fnPipeError != nil){
+			err = fnPipeError(err)
+		} 
+		e.thrower.Throw(err)
 	}
 }

@@ -9,4 +9,5 @@ func init(){
 	static.Container.Register().AsSingleton(new(errors.ErrorManager), errors.NewErrorManager, nil)
 	static.Container.Register().Bind(new(errors.ErrorCallbacks), new(errors.ErrorManager))
 	static.Container.Register().AsSingleton(new(errors.ErrorThrower), errors.NewErrorThrower, nil)
+	static.Container.Register().AsSingleton(new(errors.ErrorDefer), errors.NewErrorDefer, nil)
 }

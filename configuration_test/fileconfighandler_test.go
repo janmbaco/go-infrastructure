@@ -12,7 +12,6 @@ import (
 	
 	errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
 	fileConfigResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
-	diskResolver "github.com/janmbaco/go-infrastructure/disk/ioc/resolver"
 )
 
 type configFile struct {
@@ -29,7 +28,7 @@ func TestNewFileConfigHandler(t *testing.T) {
 
 	 errorsResolver.GetErrorCatcher().TryCatchErrorAndFinally(func() {
 
-		configHandler := fileConfigResolver.GetFileConfigHandler(filePath, &configFile{Options: initialOptions}, diskResolver.GetFileChangedNotifier(filePath))
+		configHandler := fileConfigResolver.GetFileConfigHandler(filePath, &configFile{Options: initialOptions})
 		wg := sync.WaitGroup{}
 		wg.Add(1)
 

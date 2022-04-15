@@ -10,9 +10,3 @@ type CipherError interface {
 type cipherError struct {
 	errors.CustomizableError
 }
-
-type cipherErrorPipe struct{}
-
-func (*cipherErrorPipe) Pipe(err error) error {
-	return &cipherError{CustomizableError: errors.CustomizableError{Message: err.Error(), InternalError: err}}
-}

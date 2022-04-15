@@ -21,14 +21,14 @@ type dataAccess struct {
 	deferer   errors.ErrorDefer
 }
 
-func NewDataAccess(thrower errors.ErrorThrower, db *gorm.DB, modelType reflect.Type) DataAccess {
-	errorschecker.CheckNilParameter(map[string]interface{}{"thrower": thrower, "db": db, "modelType": modelType})
-	result := &dataAccess{db: db, datamodel: reflect.New(modelType.Elem()).Interface(), modelType: modelType, deferer: errors.NewErrorDefer(thrower, &databaseErrorPipe{})}
+func NewDataAccess(errorDefer errors.ErrorDefer, db *gorm.DB, modelType reflect.Type) DataAccess {
+	errorschecker.CheckNilParameter(map[string]interface{}{"errorDefer": errorDefer, "db": db, "modelType": modelType})
+	result := &dataAccess{db: db, datamodel: reflect.New(modelType.Elem()).Interface(), modelType: modelType, deferer: errorDefer}
 	return result
 }
 
 func (r *dataAccess) Insert(datarow interface{}) {
-	defer r.deferer.TryThrowError()
+	defer r.deferer.TryThrowError(r.pipError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"datarow": datarow})
 
 	if reflect.TypeOf(datarow) != r.modelType {
@@ -39,7 +39,7 @@ func (r *dataAccess) Insert(datarow interface{}) {
 }
 
 func (r *dataAccess) Select(datafilter interface{}, preloads ...string) interface{} {
-	defer r.deferer.TryThrowError()
+	defer r.deferer.TryThrowError(r.pipError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter})
 
 	if reflect.TypeOf(datafilter) != r.modelType {
@@ -58,14 +58,14 @@ func (r *dataAccess) Select(datafilter interface{}, preloads ...string) interfac
 }
 
 func (r *dataAccess) Update(datafilter interface{}, datarow interface{}) {
-	defer r.deferer.TryThrowError()
+	defer r.deferer.TryThrowError(r.pipError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter, "datarow": datarow})
 	errorschecker.TryPanic(r.db.Model(r.datamodel).Where(datafilter).Updates(datarow).Error)
 
 }
 
 func (r *dataAccess) Delete(datafilter interface{}, associateds ...string) {
-	defer r.deferer.TryThrowError()
+	defer r.deferer.TryThrowError(r.pipError)
 	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter})
 	if len(associateds) > 0 {
 		dataArray := r.Select(datafilter)
@@ -73,4 +73,14 @@ func (r *dataAccess) Delete(datafilter interface{}, associateds ...string) {
 	} else {
 		errorschecker.TryPanic(r.db.Model(r.datamodel).Where(datafilter).Delete(nil).Error)
 	}
+}
+
+func (r *dataAccess) pipError(err error) error {
+	resultError := err
+
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*DataBaseError)(nil)).Elem()) {
+		resultError = newDataBaseError(UnexpectedError, err.Error(), err)
+	}
+
+	return resultError
 }

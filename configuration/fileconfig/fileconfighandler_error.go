@@ -2,7 +2,6 @@ package fileconfig
 
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
-	"reflect"
 )
 
 // FileConfigHandlerError is the struct of an error occurs in FileConfigHandler object
@@ -37,15 +36,3 @@ const (
 	UnexpectedError FileConfigHandlerErrorType = iota
 	OldConfigNilError
 )
-
-type fileConfigHandleErrorPipe struct{}
-
-func (*fileConfigHandleErrorPipe) Pipe(err error) error {
-	resultError := err
-
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*FileConfigHandlerError)(nil)).Elem()) {
-		resultError = newFileConfigHandlerError(UnexpectedError, err.Error(), err)
-	}
-
-	return resultError
-}
