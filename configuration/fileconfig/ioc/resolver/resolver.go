@@ -6,10 +6,10 @@ import (
 	_ "github.com/janmbaco/go-infrastructure/logs/ioc"
 	_ "github.com/janmbaco/go-infrastructure/errors/ioc"
 	_ "github.com/janmbaco/go-infrastructure/eventsmanager/ioc"
+	_ "github.com/janmbaco/go-infrastructure/disk/ioc"
 	_ "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
 
 	"github.com/janmbaco/go-infrastructure/configuration"
-	diskResolver "github.com/janmbaco/go-infrastructure/disk/ioc/resolver"
 )
 
 func GetFileConfigHandler(filePath string, defaults interface{}) configuration.ConfigHandler {
@@ -18,7 +18,6 @@ func GetFileConfigHandler(filePath string, defaults interface{}) configuration.C
 			map[string]interface{}{
 				"filePath": filePath,
 				"defaults": defaults,
-				"fileChangeNotifier": diskResolver.GetFileChangedNotifier(filePath),
 			},
 		).(configuration.ConfigHandler)
 }
