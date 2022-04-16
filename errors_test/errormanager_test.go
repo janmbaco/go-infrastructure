@@ -6,14 +6,14 @@ import (
 	"github.com/janmbaco/go-infrastructure/dependencyinjection/static"
 	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
+	loggerResolver "github.com/janmbaco/go-infrastructure/logs/ioc/resolver"
 	errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
-	"github.com/janmbaco/go-infrastructure/logs"
 )
 
 func TestErrorManager(t *testing.T) {
 
 	static.Container.Register().AsType(new(sampleClass), newSampleCass, nil)
-	log := static.Container.Resolver().Type(new(logs.Logger), nil).(logs.Logger)
+	log := loggerResolver.GetLogger()
 	errorsResolver.GetErrorManager().On(
 		new(sampleClassError), 
 		func(err error) {
