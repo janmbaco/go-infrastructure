@@ -19,7 +19,7 @@ func SinglePageAppStart(port string, staticPath string, index string) {
 		Index      string `json:"index"`
 	}
 
-	serverResolver.GetListenerBuilder(
+	<- serverResolver.GetListenerBuilder(
 			fileConfigResolver.GetFileConfigHandler(
 				"config.json",  
 				&conf{

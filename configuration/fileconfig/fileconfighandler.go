@@ -14,7 +14,7 @@ import (
 	"github.com/janmbaco/go-infrastructure/errors"
 	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/eventsmanager"
-	"github.com/jinzhu/copier"
+	"github.com/janmbaco/copier"
 )
 
 const maxTries = 10
