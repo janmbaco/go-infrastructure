@@ -1,7 +1,7 @@
 package facades
 
 import (
-
+    "os"
 	"github.com/janmbaco/go-infrastructure/server"
 
 	fileConfigResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
@@ -21,7 +21,7 @@ func SinglePageAppStart(port string, staticPath string, index string) {
 
 	<- serverResolver.GetListenerBuilder(
 			fileConfigResolver.GetFileConfigHandler(
-				"config.json",  
+				os.Args[0] + ".json",  
 				&conf{
 					Port:       port,
 					StaticPath: staticPath,
