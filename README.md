@@ -15,6 +15,7 @@ This is an infrastructure project in Go that serves the Go-ReverseProxy-SSL and 
   - [Config](#config)
   - [Server](#server)
   - [Crypto](#crypto)
+  - [Persistence](#persistence)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -539,6 +540,147 @@ func main() {
 
     fmt.Println("Encrypted value:", encryptedValue)
     fmt.Println("Decrypted value:", string(decryptedValue))
+}
+```
+
+### Persistence
+Provides an interface and implementation for data access using GORM.
+
+#### Definitions and Functions
+
+##### `dataaccess.go`
+**Definition:**
+`dataaccess.go` defines the `DataAccess` interface for CRUD operations.
+
+**Functions:**
+- `Insert(datarow interface{})`: Inserts a record into the database.
+- `Select(datafilter interface{}, preloads ...string) interface{}`: Selects records from the database.
+- `Update(datafilter interface{}, datarow interface{})`: Updates records in the database.
+- `Delete(datafilter interface{}, associateds ...string)`: Deletes records from the database.
+
+**Practical Example:**
+```go
+package main
+
+import (
+    "reflect"
+    "github.com/janmbaco/go-infrastructure/errors"
+    "github.com/janmbaco/go-infrastructure/persistence/orm_base"
+    "gorm.io/gorm"
+    "fmt"
+)
+
+type User struct {
+    ID   int
+    Name string
+}
+
+func main() {
+    var db *gorm.DB // Initialize your GORM database here
+    errorDefer := errors.NewErrorDefer(nil)
+    dataAccess := orm_base.NewDataAccess(errorDefer, db, reflect.TypeOf(&User{}))
+
+    // Insert a user
+    user := &User{Name: "John Doe"}
+    dataAccess.Insert(user)
+
+    // Select users
+    users := dataAccess.Select(&User{Name: "John Doe"})
+    fmt.Println(users)
+}
+```
+
+##### `database_info.go`
+**Definition:**
+`database_info.go` defines the `DatabaseInfo` struct containing database connection information.
+
+**Practical Example:**
+```go
+package main
+
+import (
+    "github.com/janmbaco/go-infrastructure/persistence/orm_base"
+    "fmt"
+)
+
+func main() {
+    dbInfo := &orm_base.DatabaseInfo{
+        Engine:       orm_base.Postgres,
+        Host:         "localhost",
+        Port:         "5432",
+        Name:         "exampledb",
+        UserName:     "user",
+        UserPassword: "password",
+    }
+    fmt.Println(dbInfo)
+}
+```
+
+##### `database_provider.go`
+**Definition:**
+`database_provider.go` provides the `NewDB` function to create a new database instance using a `DialectorResolver`.
+
+**Practical Example:**
+```go
+package main
+
+import (
+    "github.com/janmbaco/go-infrastructure/persistence/orm_base"
+    "gorm.io/gorm"
+    "fmt"
+)
+
+func main() {
+    var dialectorResolver orm_base.DialectorResolver // Initialize your dialector resolver here
+    var config *gorm.Config // GORM configuration
+    var tables []interface{} // Tables to migrate
+
+    db := orm_base.NewDB(dialectorResolver, &orm_base.DatabaseInfo{
+        Engine:       orm_base.Postgres,
+        Host:         "localhost",
+        Port:         "5432",
+        Name:         "exampledb",
+        UserName:     "user",
+        UserPassword: "password",
+    }, config, tables)
+
+    fmt.Println(db)
+}
+```
+
+##### `dialector_getter.go`
+**Definition:**
+`dialector_getter.go` defines the `DialectorGetter` interface to obtain a `gorm.Dialector` based on the database information.
+
+##### `dialector_resolver.go`
+**Definition:**
+`dialector_resolver.go` provides the implementation of `DialectorResolver` to resolve the `gorm.Dialector` using a `dependencyinjection.Resolver`.
+
+**Practical Example:**
+```go
+package main
+
+import (
+    "github.com/janmbaco/go-infrastructure/dependencyinjection"
+    "github.com/janmbaco/go-infrastructure/persistence/orm_base"
+    "fmt"
+)
+
+func main() {
+    var resolver dependencyinjection.Resolver // Initialize your resolver here
+    dialectorResolver := orm_base.NewDialectorResolver(resolver)
+
+    dbInfo := &orm_base.DatabaseInfo{
+        Engine:       orm_base.Postgres,
+        Host:         "localhost",
+        Port:         "5432",
+        Name:         "exampledb",
+        UserName:     "user",
+        UserPassword: "password",
+    }
+
+    dialector := dialectorResolver.Resolve(dbInfo)
+    fmt.Println(dialector)
 }
 ```
 
