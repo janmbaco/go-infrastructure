@@ -1,5 +1,4 @@
 package orm_base
-
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
 )

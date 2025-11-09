@@ -8,12 +8,53 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Output of the go coverage tool
 *.out
+coverage.txt
+coverage.html
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-go.sum
+# Dependency directories
+vendor/
 
-.idea
-.vscode
+# Go workspace file
+go.work
+go.work.sum
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+bin/
+dist/
+build/
+
+# Test configuration files
+*.badconfig
+configuration.json
+
+# Log files
+*.log
+
+# Local configuration files
+config.local*.json
+**/config.local*.json
+
+# SSL certificates and private keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# Temporary files
+*.tmp
+*.temp

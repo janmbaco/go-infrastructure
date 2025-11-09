@@ -1,92 +1,126 @@
 package errors
-
 import (
-	"errors"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
+	"fmt"
 	"github.com/janmbaco/go-infrastructure/logs"
 )
 
-// ErrorCatcher defines a object responsible to catch the errors
+// ErrorCatcher defines an object responsible to catch errors without panic/recover
 type ErrorCatcher interface {
-	CatchError(err error, errorfn func(error))
-	CatchErrorAndFinally(err error, errorfn func(error), finallyfn func())
-	OnErrorContinue(tryfn func())
-	EvenErrorFinally(err error, finallyfn func())
-	TryCatchError(tryfn func(), errorfn func(error))
-	TryFinally(tryfn func(), finallyfn func())
-	TryCatchErrorAndFinally(tryfn func(), errorfn func(error), finallyfn func())
+	HandleError(err error, errorfn func(error)) error
+	HandleErrorWithFinally(err error, errorfn func(error), finallyfn func()) error
+	TryCatchError(tryfn func() error, errorfn func(error)) error
+	TryFinally(tryfn func() error, finallyfn func()) error
+	TryCatchErrorAndFinally(tryfn func() error, errorfn func(error), finallyfn func()) error
+	OnErrorContinue(tryfn func() error) error
+	CatchError(err error, errorfn func(error)) error
+	CatchErrorAndFinally(err error, errorfn func(error), finallyfn func()) error
 }
 
 type errorCatcher struct {
 	logger logs.ErrorLogger
 }
 
-// NewErrorCatcher returns a ErrorCatcher object
+// NewErrorCatcher returns an ErrorCatcher object
 func NewErrorCatcher(logger logs.ErrorLogger) ErrorCatcher {
+	if logger == nil {
+		return &errorCatcher{logger: &noOpLogger{}}
+	}
 	return &errorCatcher{logger: logger}
 }
 
-// OnErrorContinue continues even if an error occurs
-func (e *errorCatcher) OnErrorContinue(tryfn func()) {
-	defer e.deferTryError(true, nil, nil)
-	tryfn()
+// HandleError handles error and executes error function if err != nil
+func (e *errorCatcher) HandleError(err error, errorfn func(error)) error {
+	if err != nil && errorfn != nil {
+		errorfn(err)
+	}
+	return err
 }
 
-// TryCatchError catches the error and executes the error function
-func (e *errorCatcher) TryCatchError(tryfn func(), errorfn func(error)) {
-	defer e.deferTryError(false, errorfn, nil)
-	tryfn()
-}
-
-// TryFinally execute allways the finally function
-func (e *errorCatcher) TryFinally(tryfn func(), finallyfn func()) {
-	defer e.deferTryError(false, nil, finallyfn)
-	tryfn()
-}
-
-// TryCatchErrorAndFinally execute allways the finally function and then catches the error and executes the error function
-func (e *errorCatcher) TryCatchErrorAndFinally(tryfn func(), errorfn func(error), finallyfn func()) {
-	defer e.deferTryError(false, errorfn, finallyfn)
-	tryfn()
-}
-
-// CatchError if err is different from nil executes the error function
-func (e *errorCatcher) CatchError(err error, errorfn func(error)) {
-	defer e.deferTryError(false, errorfn, nil)
-	errorschecker.TryPanic(err)
-}
-
-// EvenErrorFinally always execute the function finally, even if the error is different from nil
-func (e *errorCatcher) EvenErrorFinally(err error, finallyfn func()) {
-	defer e.deferTryError(false, nil, finallyfn)
-	errorschecker.TryPanic(err)
-}
-
-// CatchErrorAndFinally execute allways the finally function and then if the error is different from nil  executes the error function
-func (e *errorCatcher) CatchErrorAndFinally(err error, errorfn func(error), finallyfn func()) {
-	defer e.deferTryError(false, errorfn, finallyfn)
-	errorschecker.TryPanic(err)
-}
-
-func (e *errorCatcher) deferTryError(shouldContinue bool, errorfn func(error), finallyfn func()) {
+// HandleErrorWithFinally always executes finally, then handles error
+func (e *errorCatcher) HandleErrorWithFinally(err error, errorfn func(error), finallyfn func()) error {
 	if finallyfn != nil {
 		finallyfn()
 	}
-	if re := recover(); re != nil {
-		err := errors.New("unexpected error")
-		switch re.(type) {
-		case string:
-			err = errors.New(re.(string))
-		case error:
-			err = re.(error)
-		}
-
-		if errorfn != nil {
-			errorfn(err)
-		} else if !shouldContinue {
-			e.logger.PrintError(logs.Error, err)
-			panic(err)
-		}
-
-	}
+	return e.HandleError(err, errorfn)
 }
+
+// TryCatchError executes function and catches returned error
+func (e *errorCatcher) TryCatchError(tryfn func() error, errorfn func(error)) error {
+	if tryfn == nil {
+		return fmt.Errorf("tryfn cannot be nil")
+	}
+
+	err := tryfn()
+	if err != nil && errorfn != nil {
+		errorfn(err)
+	}
+	return err
+}
+
+// TryFinally always executes finally function
+func (e *errorCatcher) TryFinally(tryfn func() error, finallyfn func()) error {
+	if tryfn == nil {
+		return fmt.Errorf("tryfn cannot be nil")
+	}
+
+	defer func() {
+		if finallyfn != nil {
+			finallyfn()
+		}
+	}()
+
+	return tryfn()
+}
+
+// TryCatchErrorAndFinally always executes finally, then catches error
+func (e *errorCatcher) TryCatchErrorAndFinally(tryfn func() error, errorfn func(error), finallyfn func()) error {
+	if tryfn == nil {
+		return fmt.Errorf("tryfn cannot be nil")
+	}
+
+	defer func() {
+		if finallyfn != nil {
+			finallyfn()
+		}
+	}()
+
+	err := tryfn()
+	if err != nil && errorfn != nil {
+		errorfn(err)
+	}
+	return err
+}
+
+// OnErrorContinue executes function and logs error if occurs, but continues execution
+func (e *errorCatcher) OnErrorContinue(tryfn func() error) error {
+	if tryfn == nil {
+		return fmt.Errorf("tryfn cannot be nil")
+	}
+
+	err := tryfn()
+	if err != nil {
+		e.logger.TryError(err)
+	}
+	return nil
+}
+
+// CatchError handles error if present
+func (e *errorCatcher) CatchError(err error, errorfn func(error)) error {
+	return e.HandleError(err, errorfn)
+}
+
+// CatchErrorAndFinally always executes finally, then handles error
+func (e *errorCatcher) CatchErrorAndFinally(err error, errorfn func(error), finallyfn func()) error {
+	return e.HandleErrorWithFinally(err, errorfn, finallyfn)
+}
+
+// noOpLogger is a fallback logger
+type noOpLogger struct{}
+
+func (n *noOpLogger) PrintError(level logs.LogLevel, err error)    {}
+func (n *noOpLogger) TryPrintError(level logs.LogLevel, err error) {}
+func (n *noOpLogger) TryTrace(err error)                           {}
+func (n *noOpLogger) TryInfo(err error)                            {}
+func (n *noOpLogger) TryWarning(err error)                         {}
+func (n *noOpLogger) TryError(err error)                           {}
+func (n *noOpLogger) TryFatal(err error)                           {}

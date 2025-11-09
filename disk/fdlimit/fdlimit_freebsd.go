@@ -1,7 +1,9 @@
-// +build freebsd
-
 package fdlimit
 
+//go:build freebsd
+// +build freebsd
+
+package 
 import "syscall"
 
 func Get() (int, error) {

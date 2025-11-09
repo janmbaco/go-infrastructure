@@ -8,69 +8,80 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/janmbaco/copier"
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/configuration/events"
 	"github.com/janmbaco/go-infrastructure/disk"
 	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"github.com/janmbaco/go-infrastructure/eventsmanager"
-	"github.com/janmbaco/copier"
+	"github.com/janmbaco/go-infrastructure/logs"
 )
 
 const maxTries = 10
 
 type fileConfigHandler struct {
 	*events.ModifiedEventHandler
-	*events.ModifyingEventHandler
-	*events.ModificationCanceledEventHandler
 	*events.RestoredEventHandler
-	filePath               string
-	oldconfig              interface{}
-	dataconfig             interface{}
-	newConfig              interface{}
-	isFreezed              bool
-	fromFile               interface{}
-	publisher              eventsmanager.Publisher
-	period                 configuration.Period
-	errorCatcher           errors.ErrorCatcher
-	errorDefer             errors.ErrorDefer
-	stopRefresh            chan bool
+	filePath     string
+	oldconfig    interface{}
+	dataconfig   interface{}
+	newConfig    interface{}
+	isFreezed    bool
+	fromFile     interface{}
+	eventManager *eventsmanager.EventManager
+	period       configuration.Period
+	errorCatcher errors.ErrorCatcher
+	stopRefresh  chan bool
 }
 
 // NewFileConfigHandler returns a ConfigHandler
-func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher errors.ErrorCatcher, errorDefer errors.ErrorDefer, subscriptions eventsmanager.Subscriptions, publisher eventsmanager.Publisher, filechangeNotifier disk.FileChangedNotifier) configuration.ConfigHandler {
-	errorschecker.CheckNilParameter(map[string]interface{}{"defaults": defaults, "errorCatcher": errorCatcher, "errorDefer": errorDefer, "subscriptions": subscriptions, "publisher": publisher, "filechangeNotifier": filechangeNotifier})
+func NewFileConfigHandler(filePath string, defaults interface{}, errorCatcher errors.ErrorCatcher, eventManager *eventsmanager.EventManager, filechangeNotifier disk.FileChangedNotifier, logger logs.Logger) (configuration.ConfigHandler, error) {
+	modifiedSubs := eventsmanager.NewSubscriptions[events.ModifiedEvent]()
+	restoredSubs := eventsmanager.NewSubscriptions[events.RestoredEvent]()
+	modifiedPub := eventsmanager.NewPublisher(modifiedSubs, logger)
+	restoredPub := eventsmanager.NewPublisher(restoredSubs, logger)
+	eventsmanager.Register(eventManager, modifiedPub)
+	eventsmanager.Register(eventManager, restoredPub)
 	fileConfigHandler := &fileConfigHandler{
-		filePath:                         filePath,
-		publisher:                        publisher,
-		ModifiedEventHandler:             events.NewModifiedEventHandler(subscriptions),
-		ModifyingEventHandler:            events.NewModifyingEventHandler(subscriptions),
-		RestoredEventHandler:             events.NewRestoredEventHandler(subscriptions),
-		ModificationCanceledEventHandler: events.NewModificationCanceledEventHandler(subscriptions),
-		errorCatcher:                     errorCatcher,
-		stopRefresh:                      make(chan bool, 1),
-		errorDefer:                       errorDefer,
+		filePath:             filePath,
+		eventManager:         eventManager,
+		ModifiedEventHandler: events.NewModifiedEventHandler(modifiedSubs),
+		RestoredEventHandler: events.NewRestoredEventHandler(restoredSubs),
+		errorCatcher:         errorCatcher,
+		stopRefresh:          make(chan bool, 1),
 	}
 	fileConfigHandler.dataconfig = reflect.New(reflect.TypeOf(defaults).Elem()).Interface()
-	errorschecker.TryPanic(copier.Copy(fileConfigHandler.dataconfig, defaults))
+	if err := copier.Copy(fileConfigHandler.dataconfig, defaults); err != nil {
+		return nil, err
+	}
 	if !disk.ExistsPath(fileConfigHandler.filePath) {
-		fileConfigHandler.writeFile()
+		if err := fileConfigHandler.writeFile(); err != nil {
+			return nil, err
+		}
 	}
-	filechangeNotifier.Subscribe(fileConfigHandler.onModifiedConfigFile)
-	fileConfigHandler.readFile()
+	if err := filechangeNotifier.Subscribe(fileConfigHandler.onModifiedConfigFile); err != nil {
+		return nil, err
+	}
+	if err := fileConfigHandler.readFile(); err != nil {
+		return nil, err
+	}
 	if !reflect.DeepEqual(fileConfigHandler.fromFile, fileConfigHandler.dataconfig) {
-		errorschecker.TryPanic(copier.Copy(fileConfigHandler.dataconfig, fileConfigHandler.fromFile))
+		if err := copier.Copy(fileConfigHandler.dataconfig, fileConfigHandler.fromFile); err != nil {
+			return nil, err
+		}
 	}
-	return fileConfigHandler
+	return fileConfigHandler, nil
 }
 
 // SetRefreshTime sets the period to refresh the config
-func (f *fileConfigHandler) SetRefreshTime(period configuration.Period) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"period": period})
-	defer f.errorDefer.TryThrowError(f.pipeError)
+func (f *fileConfigHandler) SetRefreshTime(period configuration.Period) error {
+	if f.stopRefresh == nil {
+		return newFileConfigHandlerError(UnexpectedError, "handler not initialized", nil)
+	}
 	f.stopRefresh <- true
 	f.period = period
 	go f.refreshLoop()
+	return nil
 }
 
 // Freeze causes configuration changes to not be made until the end of the specified period
@@ -88,12 +99,45 @@ func (f *fileConfigHandler) GetConfig() interface{} {
 	return f.dataconfig
 }
 
-// ForceRefresh forces a refresh of the configuration
-func (f *fileConfigHandler) ForceRefresh() {
-	defer f.errorDefer.TryThrowError(f.pipeError)
-	if f.newConfig != nil && !reflect.DeepEqual(f.newConfig, f.dataconfig) {
-		errorschecker.TryPanic(copier.Copy(f.dataconfig, f.newConfig))
+// SetConfig updates the configuration and writes it to file
+func (f *fileConfigHandler) SetConfig(newConfig interface{}) error {
+	f.oldconfig = f.createConfig()
+	if err := copier.Copy(f.oldconfig, f.dataconfig); err != nil {
+		return f.pipeError(err)
 	}
+
+	// Si newConfig es un map (vino de JSON), necesitamos re-marshalearlo y unmarshalearlo
+	// para convertirlo al tipo correcto
+	configBytes, err := json.Marshal(newConfig)
+	if err != nil {
+		return f.pipeError(err)
+	}
+
+	tempConfig := f.createConfig()
+	if err := json.Unmarshal(configBytes, tempConfig); err != nil {
+		return f.pipeError(err)
+	}
+
+	if err := copier.Copy(f.dataconfig, tempConfig); err != nil {
+		return f.pipeError(err)
+	}
+
+	if err := f.writeFile(); err != nil {
+		return f.pipeError(err)
+	}
+
+	eventsmanager.Publish(f.eventManager, events.ModifiedEvent{})
+	return nil
+}
+
+// ForceRefresh forces a refresh of the configuration
+func (f *fileConfigHandler) ForceRefresh() error {
+	if f.newConfig != nil && !reflect.DeepEqual(f.newConfig, f.dataconfig) {
+		if err := copier.Copy(f.dataconfig, f.newConfig); err != nil {
+			return f.pipeError(err)
+		}
+	}
+	return nil
 }
 
 // CanRestore indicates if the config can be restored
@@ -102,70 +146,85 @@ func (f *fileConfigHandler) CanRestore() bool {
 }
 
 // Restore restores the configuration to an older version
-func (f *fileConfigHandler) Restore() {
-	defer f.errorDefer.TryThrowError(f.pipeError)
+func (f *fileConfigHandler) Restore() error {
 	if !f.CanRestore() {
-		panic(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil", nil))
+		return f.pipeError(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil", nil))
 	}
 	f.newConfig = f.createConfig()
-	errorschecker.TryPanic(copier.Copy(f.newConfig, f.dataconfig))
-	errorschecker.TryPanic(copier.Copy(f.dataconfig, f.oldconfig))
+	if err := copier.Copy(f.newConfig, f.dataconfig); err != nil {
+		return f.pipeError(err)
+	}
+	if err := copier.Copy(f.dataconfig, f.oldconfig); err != nil {
+		return f.pipeError(err)
+	}
 	f.oldconfig = nil
-	f.writeFile()
-	f.publisher.Publish(&events.RestoredEvent{})
+	if err := f.writeFile(); err != nil {
+		return f.pipeError(err)
+	}
+	eventsmanager.Publish(f.eventManager, events.RestoredEvent{})
+	return nil
 }
 
-func (f *fileConfigHandler) readFile() {
+func (f *fileConfigHandler) readFile() error {
 	var content []byte
 	var err error
 	try := 1
 	for len(content) == 0 && try < maxTries {
 		content, err = ioutil.ReadFile(f.filePath)
-		errorschecker.TryPanic(err)
+		if err != nil {
+			return err
+		}
 		try++
 	}
 	ret := reflect.New(reflect.TypeOf(f.dataconfig)).Interface()
-	errorschecker.TryPanic(json.Unmarshal(content, ret))
+	if err := json.Unmarshal(content, ret); err != nil {
+		return err
+	}
 	f.fromFile = f.createConfig()
-	errorschecker.TryPanic(copier.Copy(f.fromFile, ret))
+	if err := copier.Copy(f.fromFile, ret); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (f *fileConfigHandler) writeFile() {
+func (f *fileConfigHandler) writeFile() error {
 	var content []byte
 	var err error
 	content, err = json.MarshalIndent(f.dataconfig, "", "\t")
-	errorschecker.TryPanic(err)
+	if err != nil {
+		return err
+	}
 	_ = os.Mkdir(filepath.Dir(f.filePath), 0666)
-	disk.CreateFile(f.filePath, content)
+	return disk.CreateFile(f.filePath, content)
 }
 
 func (f *fileConfigHandler) onModifiedConfigFile() {
 	f.errorCatcher.TryCatchError(
-		func() {
-			f.readFile()
+		func() error {
+			if err := f.readFile(); err != nil {
+				return err
+			}
 			if !reflect.DeepEqual(f.fromFile, f.dataconfig) {
-				eventArgs := &events.ModifyingEventArgs{Config: f.fromFile}
-				f.publisher.Publish(&events.ModifyingEvent{
-					EventArgs: eventArgs,
-				})
-				if eventArgs.Cancel {
-					f.recoveryFile()
-					f.publisher.Publish(&events.ModificationCanceledEvent{EventArgs: &events.ModificationCanceledEventArgs{CancelMessage: eventArgs.CancelMessage}})
-				} else {
-					f.newConfig = f.createConfig()
-					errorschecker.TryPanic(copier.Copy(f.newConfig, f.fromFile))
-					if !f.isFreezed {
-						f.oldconfig = f.createConfig()
-						errorschecker.TryPanic(copier.Copy(f.oldconfig, f.dataconfig))
-						errorschecker.TryPanic(copier.Copy(f.dataconfig, f.newConfig))
-						f.newConfig = nil
-						f.publisher.Publish(&events.ModifiedEvent{})
+				f.newConfig = f.createConfig()
+				if err := copier.Copy(f.newConfig, f.fromFile); err != nil {
+					return err
+				}
+				if !f.isFreezed {
+					f.oldconfig = f.createConfig()
+					if err := copier.Copy(f.oldconfig, f.dataconfig); err != nil {
+						return err
 					}
+					if err := copier.Copy(f.dataconfig, f.newConfig); err != nil {
+						return err
+					}
+					f.newConfig = nil
+					eventsmanager.Publish(f.eventManager, events.ModifiedEvent{})
 				}
 			}
+			return nil
 		},
 		func(err error) {
-			f.recoveryFile()
+			_ = f.recoveryFile()
 		})
 }
 
@@ -173,24 +232,26 @@ func (f *fileConfigHandler) createConfig() interface{} {
 	return reflect.New(reflect.TypeOf(f.dataconfig).Elem()).Interface()
 }
 
-func (f *fileConfigHandler) recoveryFile() {
-	disk.Copy(f.filePath, f.filePath+".badconfig")
-	f.writeFile()
+func (f *fileConfigHandler) recoveryFile() error {
+	if err := disk.Copy(f.filePath, f.filePath+".badconfig"); err != nil {
+		return err
+	}
+	return f.writeFile()
 }
 
 func (f *fileConfigHandler) refreshLoop() {
 	exit := false
-	for{
+	for {
 		select {
 		case <-time.After(time.Minute):
 			if f.period.IsFinished() {
-				f.ForceRefresh()
+				_ = f.ForceRefresh()
 			}
 		case <-f.stopRefresh:
 			exit = true
 		}
 		if exit {
-			break;
+			break
 		}
 	}
 }

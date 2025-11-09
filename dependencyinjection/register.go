@@ -1,7 +1,6 @@
 package dependencyinjection
-
 import (
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
+	"context"
 	"reflect"
 )
 
@@ -13,6 +12,13 @@ type Register interface {
 	AsTenant(tenant string, iface, provider interface{}, argNames map[uint]string)
 	AsSingletonTenant(tenant string, iface, provider interface{}, argNames map[uint]string)
 	Bind(ifaceFrom, ifaceTo interface{})
+	
+	// Context-aware methods
+	AsTypeCtx(ctx context.Context, iface, provider interface{}, argNames map[uint]string)
+	AsScopeCtx(ctx context.Context, iface, provider interface{}, argNames map[uint]string)
+	AsSingletonCtx(ctx context.Context, iface, provider interface{}, argNames map[uint]string)
+	AsTenantCtx(ctx context.Context, tenant string, iface, provider interface{}, argNames map[uint]string)
+	AsSingletonTenantCtx(ctx context.Context, tenant string, iface, provider interface{}, argNames map[uint]string)
 }
 
 type register struct {
@@ -25,7 +31,6 @@ func newRegister(dependencies Dependencies) Register {
 
 // AsType register that the dependecy goes to be provided by a provider and a args
 func (r *register) AsType(iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
 	r.dependencies.Set(
 		DependencyKey{Iface: reflect.Indirect(reflect.ValueOf(iface)).Type()},
 		&dependencyObject{provider: provider, argNames: argNames},
@@ -34,7 +39,6 @@ func (r *register) AsType(iface, provider interface{}, argNames map[uint]string)
 
 // AsSingleton register that the dependecy goes to be provided by a provider and a args like singleton
 func (r *register) AsScope(iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
 	r.dependencies.Set(
 		DependencyKey{Iface: reflect.Indirect(reflect.ValueOf(iface)).Type()},
 		&dependencyObject{provider: provider, argNames: argNames, dependecyType: _ScopedType},
@@ -43,7 +47,6 @@ func (r *register) AsScope(iface, provider interface{}, argNames map[uint]string
 
 // AsSingleton register that the dependecy goes to be provided by a provider and a args like singleton
 func (r *register) AsSingleton(iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
 	r.dependencies.Set(
 		DependencyKey{Iface: reflect.Indirect(reflect.ValueOf(iface)).Type()},
 		&dependencyObject{provider: provider, argNames: argNames, dependecyType: _Singleton},
@@ -52,7 +55,6 @@ func (r *register) AsSingleton(iface, provider interface{}, argNames map[uint]st
 
 // AsTenant register that the dependecy goes to be provided by a provider and a args with a tenant key
 func (r *register) AsTenant(tenant string, iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
 	r.dependencies.Set(DependencyKey{
 		Tenant: tenant,
 		Iface:  reflect.Indirect(reflect.ValueOf(iface)).Type(),
@@ -61,7 +63,6 @@ func (r *register) AsTenant(tenant string, iface, provider interface{}, argNames
 
 // AsSingletonTenant register that the dependecy goes to be provided by a provider and a args with a tenant key as singleton
 func (r *register) AsSingletonTenant(tenant string, iface, provider interface{}, argNames map[uint]string) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"iface": iface, "provider": provider})
 	r.dependencies.Set(DependencyKey{
 		Tenant: tenant,
 		Iface:  reflect.Indirect(reflect.ValueOf(iface)).Type(),
@@ -70,9 +71,33 @@ func (r *register) AsSingletonTenant(tenant string, iface, provider interface{},
 
 // Bind registers a interface that is provided by a provider of another interface
 func (r *register) Bind(ifaceFrom, ifaceTo interface{}) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"ifaceFrom": ifaceFrom, "ifaceTo": ifaceTo})
 	r.dependencies.Bind(
 		DependencyKey{Iface: reflect.Indirect(reflect.ValueOf(ifaceFrom)).Type()},
 		DependencyKey{Iface: reflect.Indirect(reflect.ValueOf(ifaceTo)).Type()},
 	)
+}
+
+// AsTypeCtx register with context (delegates to AsType for now)
+func (r *register) AsTypeCtx(ctx context.Context, iface, provider interface{}, argNames map[uint]string) {
+	r.AsType(iface, provider, argNames)
+}
+
+// AsScopeCtx register with context (delegates to AsScope for now)
+func (r *register) AsScopeCtx(ctx context.Context, iface, provider interface{}, argNames map[uint]string) {
+	r.AsScope(iface, provider, argNames)
+}
+
+// AsSingletonCtx register with context (delegates to AsSingleton for now)
+func (r *register) AsSingletonCtx(ctx context.Context, iface, provider interface{}, argNames map[uint]string) {
+	r.AsSingleton(iface, provider, argNames)
+}
+
+// AsTenantCtx register with context (delegates to AsTenant for now)
+func (r *register) AsTenantCtx(ctx context.Context, tenant string, iface, provider interface{}, argNames map[uint]string) {
+	r.AsTenant(tenant, iface, provider, argNames)
+}
+
+// AsSingletonTenantCtx register with context (delegates to AsSingletonTenant for now)
+func (r *register) AsSingletonTenantCtx(ctx context.Context, tenant string, iface, provider interface{}, argNames map[uint]string) {
+	r.AsSingletonTenant(tenant, iface, provider, argNames)
 }

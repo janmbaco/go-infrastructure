@@ -6,20 +6,26 @@ import (
 
 // ModifiedEventHandler handles the subscriptions to the event
 type ModifiedEventHandler struct {
-	subscriptions eventsmanager.Subscriptions
+	subscriptions eventsmanager.Subscriptions[ModifiedEvent]
 }
 
 // NewModifiedEventHandler returns a ModifiedEventHandler
-func NewModifiedEventHandler(subscriptions eventsmanager.Subscriptions) *ModifiedEventHandler {
+func NewModifiedEventHandler(subscriptions eventsmanager.Subscriptions[ModifiedEvent]) *ModifiedEventHandler {
 	return &ModifiedEventHandler{subscriptions: subscriptions}
 }
 
 // ModifiedUnsubscribe sets new subscription to the event
 func (m *ModifiedEventHandler) ModifiedUnsubscribe(subscription *func()) {
-	m.subscriptions.Remove(&ModifiedEvent{}, subscription)
+	if subscription != nil {
+		fn := func(ModifiedEvent) { (*subscription)() }
+		m.subscriptions.Remove(fn)
+	}
 }
 
 // ModifiedSubscribe removes a subscriptions for the event
 func (m *ModifiedEventHandler) ModifiedSubscribe(subscription *func()) {
-	m.subscriptions.Add(&ModifiedEvent{}, subscription)
+	if subscription != nil {
+		fn := func(ModifiedEvent) { (*subscription)() }
+		m.subscriptions.Add(fn)
+	}
 }

@@ -1,7 +1,9 @@
-// +build darwin
-
 package fdlimit
 
+//go:build darwin
+// +build darwin
+
+package 
 import "syscall"
 
 func Get() (int, error) {

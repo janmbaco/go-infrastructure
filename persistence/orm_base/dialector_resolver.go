@@ -1,12 +1,11 @@
 package orm_base
-
 import (
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
 	"gorm.io/gorm"
 )
 
 type DialectorResolver interface {
-	Resolve(info *DatabaseInfo) gorm.Dialector
+	Resolve(info *DatabaseInfo) (gorm.Dialector, error)
 }
 
 type dialectorResolver struct {
@@ -17,6 +16,12 @@ func NewDialectorResolver(resolver dependencyinjection.Resolver) DialectorResolv
 	return &dialectorResolver{resolver: resolver}
 }
 
-func (dbResolver *dialectorResolver) Resolve(info *DatabaseInfo) gorm.Dialector {
-	return dbResolver.resolver.Tenant(info.Engine.ToString(), new(DialectorGetter), nil).(DialectorGetter).Get(info)
+func (dbResolver *dialectorResolver) Resolve(info *DatabaseInfo) (gorm.Dialector, error) {
+	engineStr, err := info.Engine.ToString()
+	if err != nil {
+		return nil, err
+	}
+	
+	getter := dependencyinjection.ResolveTenant[DialectorGetter](dbResolver.resolver, engineStr)
+	return getter.Get(info)
 }

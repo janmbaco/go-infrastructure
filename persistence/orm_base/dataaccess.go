@@ -1,49 +1,43 @@
 package orm_base
 
 import (
-	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
-	"gorm.io/gorm"
 	"reflect"
+
+	"gorm.io/gorm"
 )
 
 type DataAccess interface {
-	Insert(datarow interface{})
-	Select(datafilter interface{}, preloads ...string) interface{}
-	Update(datafilter interface{}, datarow interface{})
-	Delete(datafilter interface{}, associateds ...string)
+	Insert(datarow interface{}) error
+	Select(datafilter interface{}, preloads ...string) (interface{}, error)
+	Update(datafilter interface{}, datarow interface{}) error
+	Delete(datafilter interface{}, associateds ...string) error
 }
 
 type dataAccess struct {
 	db        *gorm.DB
 	datamodel interface{}
 	modelType reflect.Type
-	deferer   errors.ErrorDefer
 }
 
-func NewDataAccess(errorDefer errors.ErrorDefer, db *gorm.DB, modelType reflect.Type) DataAccess {
-	errorschecker.CheckNilParameter(map[string]interface{}{"errorDefer": errorDefer, "db": db, "modelType": modelType})
-	result := &dataAccess{db: db, datamodel: reflect.New(modelType.Elem()).Interface(), modelType: modelType, deferer: errorDefer}
+func NewDataAccess(db *gorm.DB, modelType reflect.Type) DataAccess {
+	result := &dataAccess{db: db, datamodel: reflect.New(modelType.Elem()).Interface(), modelType: modelType}
 	return result
 }
 
-func (r *dataAccess) Insert(datarow interface{}) {
-	defer r.deferer.TryThrowError(r.pipError)
-	errorschecker.CheckNilParameter(map[string]interface{}{"datarow": datarow})
-
+func (r *dataAccess) Insert(datarow interface{}) error {
 	if reflect.TypeOf(datarow) != r.modelType {
-		panic(newDataBaseError(DataRowUnexpected, "The datarow does not belong to this datamodel!", nil))
+		return newDataBaseError(DataRowUnexpected, "The datarow does not belong to this datamodel!", nil)
 	}
 
-	errorschecker.TryPanic(r.db.Model(r.datamodel).Create(datarow).Error)
+	if err := r.db.Model(r.datamodel).Create(datarow).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
-func (r *dataAccess) Select(datafilter interface{}, preloads ...string) interface{} {
-	defer r.deferer.TryThrowError(r.pipError)
-	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter})
-
+func (r *dataAccess) Select(datafilter interface{}, preloads ...string) (interface{}, error) {
 	if reflect.TypeOf(datafilter) != r.modelType {
-		panic(newDataBaseError(DataFilterUnexpected, "The datafilter does not belong to this dataAccess!", nil))
+		return nil, newDataBaseError(DataFilterUnexpected, "The datafilter does not belong to this dataAccess!", nil)
 	}
 	slice := reflect.MakeSlice(reflect.SliceOf(r.modelType), 0, 0)
 	pointer := reflect.New(slice.Type())
@@ -53,34 +47,32 @@ func (r *dataAccess) Select(datafilter interface{}, preloads ...string) interfac
 	for _, preload := range preloads {
 		query = query.Preload(preload)
 	}
-	errorschecker.TryPanic(query.Find(dataArray).Error)
-	return reflect.ValueOf(dataArray).Elem().Interface()
+	if err := query.Find(dataArray).Error; err != nil {
+		return nil, err
+	}
+	return reflect.ValueOf(dataArray).Elem().Interface(), nil
 }
 
-func (r *dataAccess) Update(datafilter interface{}, datarow interface{}) {
-	defer r.deferer.TryThrowError(r.pipError)
-	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter, "datarow": datarow})
-	errorschecker.TryPanic(r.db.Model(r.datamodel).Where(datafilter).Updates(datarow).Error)
-
+func (r *dataAccess) Update(datafilter interface{}, datarow interface{}) error {
+	if err := r.db.Model(r.datamodel).Where(datafilter).Updates(datarow).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
-func (r *dataAccess) Delete(datafilter interface{}, associateds ...string) {
-	defer r.deferer.TryThrowError(r.pipError)
-	errorschecker.CheckNilParameter(map[string]interface{}{"datafilter": datafilter})
+func (r *dataAccess) Delete(datafilter interface{}, associateds ...string) error {
 	if len(associateds) > 0 {
-		dataArray := r.Select(datafilter)
-		errorschecker.TryPanic(r.db.Select(associateds).Delete(dataArray).Error)
+		dataArray, err := r.Select(datafilter)
+		if err != nil {
+			return err
+		}
+		if err := r.db.Select(associateds).Delete(dataArray).Error; err != nil {
+			return err
+		}
 	} else {
-		errorschecker.TryPanic(r.db.Model(r.datamodel).Where(datafilter).Delete(nil).Error)
+		if err := r.db.Model(r.datamodel).Where(datafilter).Delete(nil).Error; err != nil {
+			return err
+		}
 	}
-}
-
-func (r *dataAccess) pipError(err error) error {
-	resultError := err
-
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*DataBaseError)(nil)).Elem()) {
-		resultError = newDataBaseError(UnexpectedError, err.Error(), err)
-	}
-
-	return resultError
+	return nil
 }

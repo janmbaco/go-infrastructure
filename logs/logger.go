@@ -2,7 +2,6 @@ package logs
 
 import (
 	"fmt"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"io"
 	"log"
 	"os"
@@ -49,6 +48,8 @@ type Logger interface {
 	SetFileLogLevel(level LogLevel)
 	GetErrorLogger() *log.Logger
 	SetDir(string)
+	Mute()
+	Unmute()
 }
 
 type logger struct {
@@ -57,6 +58,7 @@ type logger struct {
 	activeFileLogger    map[LogLevel]bool
 	errorLogger         *log.Logger
 	logsDir             string
+	muted               bool
 }
 
 func NewLogger() Logger {
@@ -90,6 +92,9 @@ func (logger *logger) Printlnf(level LogLevel, format string, a ...interface{}) 
 }
 
 func (logger *logger) Println(level LogLevel, message string) {
+	if logger.muted {
+		return
+	}
 	var writers []io.Writer
 	if logger.activeConsoleLogger[level] {
 		if level < Error {
@@ -144,7 +149,6 @@ func (logger *logger) GetErrorLogger() *log.Logger {
 }
 
 func (logger *logger) PrintError(level LogLevel, err error) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"err": err})
 	logger.Println(level, err.Error())
 }
 
@@ -211,6 +215,14 @@ func (logger *logger) Fatalf(format string, a ...interface{}) {
 
 func (logger *logger) TryFatal(err error) {
 	logger.PrintError(Fatal, err)
+}
+
+func (logger *logger) Mute() {
+	logger.muted = true
+}
+
+func (logger *logger) Unmute() {
+	logger.muted = false
 }
 
 func setLevel(level LogLevel) map[LogLevel]bool {

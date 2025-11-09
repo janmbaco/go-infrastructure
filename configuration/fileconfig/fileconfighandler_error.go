@@ -1,5 +1,4 @@
 package fileconfig
-
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
 )

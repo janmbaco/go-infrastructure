@@ -1,8 +1,6 @@
 package dependencyinjection
-
 import (
 	"fmt"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"reflect"
 	"sync"
 )
@@ -33,7 +31,6 @@ func newDependencies() Dependencies {
 }
 
 func (d *dependencies) Set(key DependencyKey, object DependencyObject) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"object": object})
 	d.objects.Store(key, object)
 }
 
@@ -97,7 +94,18 @@ func (do *dependencyObject) Create(params map[string]interface{}, dependencies D
 		}
 	}
 
-	result := functionValue.Call(args)[0].Interface()
+	results := functionValue.Call(args)
+	
+	// Handle (value, error) return pattern
+	if len(results) == 2 {
+		errValue := results[1]
+		if !errValue.IsNil() {
+			err := errValue.Interface().(error)
+			panic(fmt.Errorf("provider error: %w", err))
+		}
+	}
+	
+	result := results[0].Interface()
 	if result != nil {
 		switch do.dependecyType { 
 			case _Singleton:

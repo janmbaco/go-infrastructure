@@ -1,5 +1,7 @@
 package orm_base
 
+import "fmt"
+
 type DbEngine uint8
 
 const (
@@ -22,16 +24,16 @@ type DatabaseInfo struct {
 	UserPassword string   `json:"user_password"`
 }
 
-func (engine DbEngine) ToString() string {
+func (engine DbEngine) ToString() (string, error) {
 	switch engine {
 	case SqlServer:
-		return _SqlServerDB
+		return _SqlServerDB, nil
 	case Postgres:
-		return _PostgresDB
+		return _PostgresDB, nil
 	case MySql:
-		return _MySqlDB
+		return _MySqlDB, nil
 	case Sqlite:
-		return _SqliteDB
+		return _SqliteDB, nil
 	}
-	panic("not found")
+	return "", fmt.Errorf("unknown database engine: %d", engine)
 }

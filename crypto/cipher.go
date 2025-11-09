@@ -3,54 +3,47 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
-
-	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 )
 
 // Cipher defines an object responsible to cipher and deciphers values by a key
 type Cipher interface {
-	Encrypt(value []byte) []byte
-	Decrypt(value []byte) []byte
+	Encrypt(value []byte) ([]byte, error)
+	Decrypt(value []byte) ([]byte, error)
 }
 
 type cipherImp struct {
-	aead         cipher.AEAD
-	errorCatcher errors.ErrorCatcher
-	errorHandler errors.ErrorDefer
+	aead cipher.AEAD
 }
 
 // NewCipher returns a Cipher object
-func NewCipher(key []byte, errorCatcher errors.ErrorCatcher, errorDefer errors.ErrorDefer,) Cipher {
-	errorschecker.CheckNilParameter(map[string]interface{}{"errorCatcher": errorCatcher, "errorDefer": errorDefer})
+func NewCipher(key []byte) (Cipher, error) {
 	block, err := aes.NewCipher(key)
-	errorschecker.TryPanic(err)
-	aead, err := cipher.NewGCM(block)
-	errorschecker.TryPanic(err)
-	return &cipherImp{
-		aead:         aead,
-		errorCatcher: errorCatcher,
-		errorHandler: errorDefer,
+	if err != nil {
+		return nil, err
 	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	return &cipherImp{
+		aead: aead,
+	}, nil
 }
 
 // Encrypt cipher the value
-func (c *cipherImp) Encrypt(value []byte) []byte {
-	defer c.errorHandler.TryThrowError(c.pipeError)
+func (c *cipherImp) Encrypt(value []byte) ([]byte, error) {
 	nonce := make([]byte, c.aead.NonceSize())
-	return c.aead.Seal(nonce, nonce, value, nil)
+	result := c.aead.Seal(nonce, nonce, value, nil)
+	return result, nil
 }
 
 // Decrypt deciphers the value
-func (c *cipherImp) Decrypt(value []byte) []byte {
-	defer c.errorHandler.TryThrowError(c.pipeError)
+func (c *cipherImp) Decrypt(value []byte) ([]byte, error) {
 	nonceSize := c.aead.NonceSize()
 	nonce, cipherValue := value[:nonceSize], value[nonceSize:]
 	plainValue, err := c.aead.Open(nil, nonce, cipherValue, nil)
-	errorschecker.TryPanic(err)
-	return plainValue
-}
-
-func (c *cipherImp) pipeError(err error) error {
-	return &cipherError{CustomizableError: errors.CustomizableError{Message: err.Error(), InternalError: err}}
+	if err != nil {
+		return nil, err
+	}
+	return plainValue, nil
 }

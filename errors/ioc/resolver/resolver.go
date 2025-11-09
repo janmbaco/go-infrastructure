@@ -1,16 +1,10 @@
 package resolver
-import (
-	"github.com/janmbaco/go-infrastructure/dependencyinjection/static"
-	"github.com/janmbaco/go-infrastructure/errors"
 
-	_ "github.com/janmbaco/go-infrastructure/logs/ioc"
-	_ "github.com/janmbaco/go-infrastructure/errors/ioc"
+import (
+	"github.com/janmbaco/go-infrastructure/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/errors"
 )
 
-func GetErrorCatcher() errors.ErrorCatcher {
- 	return static.Container.Resolver().Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
-}
-
-func GetErrorManager() errors.ErrorManager {
-	return static.Container.Resolver().Type(new(errors.ErrorManager), nil).(errors.ErrorManager)
+func GetErrorCatcher(resolver dependencyinjection.Resolver) errors.ErrorCatcher {
+	return resolver.Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
 }

@@ -1,5 +1,4 @@
 package server
-
 import (
 	"net/http"
 	"os"
