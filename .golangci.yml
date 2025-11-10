@@ -19,7 +19,6 @@ linters:
     - unconvert
     - unparam
     - gosec
-    - exportloopref
     - noctx
     - nilerr
 
