@@ -6,7 +6,6 @@
 
 **Build production-ready Go applications faster.** Common infrastructure solved: logging, configuration reload, dependency injection, events, and error handling—all working together out of the box.
 
-Used in production by [go-reverseproxy-ssl](https://github.com/janmbaco/go-reverseproxy-ssl) and Saprocate.
 
 ---
 
