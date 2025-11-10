@@ -14,7 +14,7 @@ RUN cd ./cmd/singlepageapp \
     && go build -o /out/singlepageapp .
 
 # Runtime stage
-FROM alpine:3.18
+FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /out/singlepageapp /usr/local/bin/singlepageapp
 WORKDIR /app
