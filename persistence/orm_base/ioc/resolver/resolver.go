@@ -3,8 +3,8 @@ package resolver
 import (
 	"reflect"
 
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	"github.com/janmbaco/go-infrastructure/persistence/orm_base"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/persistence/orm_base"
 	"gorm.io/gorm"
 )
 

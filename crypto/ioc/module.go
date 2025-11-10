@@ -1,8 +1,8 @@
 package ioc
 
 import (
-	"github.com/janmbaco/go-infrastructure/crypto"
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/crypto"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
 )
 
 // CryptoModule implements Module for cryptography services

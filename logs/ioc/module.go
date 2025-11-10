@@ -1,8 +1,8 @@
 package ioc
 
 import (
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	"github.com/janmbaco/go-infrastructure/logs"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/logs"
 )
 
 // LogsModule implements Module for logging services

@@ -3,7 +3,7 @@ package eventsmanager
 import (
 	"sync"
 
-	"github.com/janmbaco/go-infrastructure/logs"
+	"github.com/janmbaco/go-infrastructure/v2/logs"
 )
 
 // Publisher defines an object responsible to publish events

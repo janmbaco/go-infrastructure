@@ -3,7 +3,7 @@ package errors_test
 import (
 	"testing"
 
-	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/v2/errors"
 )
 
 // Test_ValidateNotNil_WhenAllParametersValid_ThenReturnsNil validates that no error is returned for valid parameters

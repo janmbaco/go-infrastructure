@@ -1,9 +1,9 @@
 package ioc
 
 import (
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/configuration/fileconfig"
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/configuration"
+	"github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
 )
 
 // ConfigurationModule implements Module for configuration services

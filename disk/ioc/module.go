@@ -1,8 +1,8 @@
 package ioc
 
 import (
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	"github.com/janmbaco/go-infrastructure/disk"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/disk"
 )
 
 // DiskModule implements Module for disk services

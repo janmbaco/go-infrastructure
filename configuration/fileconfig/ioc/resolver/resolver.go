@@ -1,8 +1,8 @@
 package resolver
 
 import (
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/configuration"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
 )
 
 func GetFileConfigHandler(resolver dependencyinjection.Resolver, filePath string, defaults interface{}) configuration.ConfigHandler {

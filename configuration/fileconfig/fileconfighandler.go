@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/janmbaco/copier"
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/configuration/events"
-	"github.com/janmbaco/go-infrastructure/disk"
-	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/eventsmanager"
-	"github.com/janmbaco/go-infrastructure/logs"
+	"github.com/janmbaco/go-infrastructure/v2/configuration"
+	"github.com/janmbaco/go-infrastructure/v2/configuration/events"
+	"github.com/janmbaco/go-infrastructure/v2/disk"
+	"github.com/janmbaco/go-infrastructure/v2/errors"
+	"github.com/janmbaco/go-infrastructure/v2/eventsmanager"
+	"github.com/janmbaco/go-infrastructure/v2/logs"
 )
 
 const maxTries = 10

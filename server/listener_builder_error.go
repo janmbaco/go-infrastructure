@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/v2/errors"
 )
 
 // ListenerBuilderError is the errors of ListenerBuilder

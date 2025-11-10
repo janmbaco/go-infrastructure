@@ -1,8 +1,8 @@
 package ioc
 
 import (
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	"github.com/janmbaco/go-infrastructure/server"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/server"
 )
 
 // ServerModule implements Module for server services

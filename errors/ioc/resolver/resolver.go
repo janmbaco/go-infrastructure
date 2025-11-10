@@ -1,8 +1,8 @@
 package resolver
 
 import (
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/errors"
 )
 
 func GetErrorCatcher(resolver dependencyinjection.Resolver) errors.ErrorCatcher {

@@ -1,8 +1,8 @@
 package ioc
 
 import (
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/errors"
 )
 
 // ErrorsModule implements Module for error handling services

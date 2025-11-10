@@ -3,7 +3,7 @@ package dialectors
 import (
 	"fmt"
 
-	"github.com/janmbaco/go-infrastructure/persistence/orm_base"
+	"github.com/janmbaco/go-infrastructure/v2/persistence/orm_base"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )

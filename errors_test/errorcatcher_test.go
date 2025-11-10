@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/logs"
+	"github.com/janmbaco/go-infrastructure/v2/errors"
+	"github.com/janmbaco/go-infrastructure/v2/logs"
 )
 
 // mockLogger is a test logger implementation

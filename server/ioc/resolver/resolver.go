@@ -1,9 +1,9 @@
 package resolver
 
 import (
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	"github.com/janmbaco/go-infrastructure/server"
+	"github.com/janmbaco/go-infrastructure/v2/configuration"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/server"
 )
 
 func GetListenerBuilder(resolver dependencyinjection.Resolver, configHandler configuration.ConfigHandler) server.ListenerBuilder {

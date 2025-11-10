@@ -1,7 +1,7 @@
 package fileconfig
 
 import (
-	"github.com/janmbaco/go-infrastructure/errors"
+	"github.com/janmbaco/go-infrastructure/v2/errors"
 )
 
 // HandlerError is the struct of an error occurs in FileConfigHandler object

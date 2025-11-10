@@ -2,8 +2,8 @@ package disk
 
 import (
 	"github.com/fsnotify/fsnotify"
-	"github.com/janmbaco/go-infrastructure/eventsmanager"
-	"github.com/janmbaco/go-infrastructure/logs"
+	"github.com/janmbaco/go-infrastructure/v2/eventsmanager"
+	"github.com/janmbaco/go-infrastructure/v2/logs"
 )
 
 type (

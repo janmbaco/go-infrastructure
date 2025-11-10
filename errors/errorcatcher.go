@@ -3,7 +3,7 @@ package errors
 import (
 	"fmt"
 
-	"github.com/janmbaco/go-infrastructure/logs"
+	"github.com/janmbaco/go-infrastructure/v2/logs"
 )
 
 // ErrorCatcher defines an object responsible to catch errors without panic/recover

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/janmbaco/go-infrastructure/logs"
-	"github.com/janmbaco/go-infrastructure/server/facades"
+	"github.com/janmbaco/go-infrastructure/v2/logs"
+	"github.com/janmbaco/go-infrastructure/v2/server/facades"
 )
 
 func main() {

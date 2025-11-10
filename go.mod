@@ -1,11 +1,10 @@
-module github.com/janmbaco/go-infrastructure
+module github.com/janmbaco/go-infrastructure/v2
 
 go 1.24.0
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/janmbaco/copier v1.0.0
-	github.com/mitchellh/mapstructure v1.5.0
 	google.golang.org/grpc v1.76.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0

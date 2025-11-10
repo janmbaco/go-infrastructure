@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/janmbaco/go-infrastructure/eventsmanager"
+	"github.com/janmbaco/go-infrastructure/v2/eventsmanager"
 )
 
 // ModifiedEventHandler handles the subscriptions to the event

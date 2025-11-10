@@ -1,7 +1,7 @@
 package orm_base //nolint:revive // established package name, changing would break API
 
 import (
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
 	"gorm.io/gorm"
 )
 

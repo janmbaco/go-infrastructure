@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/janmbaco/go-infrastructure/persistence/orm_base"
+	"github.com/janmbaco/go-infrastructure/v2/persistence/orm_base"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

@@ -1,6 +1,6 @@
 # Go Infrastructure
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/janmbaco/go-infrastructure)](https://goreportcard.com/report/github.com/janmbaco/go-infrastructure)
+[![Go Report Card](https://goreportcard.com/badge/github.com/janmbaco/go-infrastructure/v2)](https://goreportcard.com/report/github.com/janmbaco/go-infrastructure/v2)
 [![Go Version](https://img.shields.io/badge/go-1.24+-blue.svg)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -11,10 +11,14 @@
 
 ## Why go-infrastructure?
 
-**No more boilerplate** - DI container, logging, and config reload already wired  
-**Live config reload** - Change JSON files, app adapts automatically without restart  
-**Clean error handling** - No panic/recover antipatterns, errors are values  
-**Type-safe events** - Generic-based pub/sub with compile-time type checking  
+**No more boilerplate** → DI container, logging, and config reload already wired  
+**Live config reload** → Change JSON files, app adapts automatically without restart  
+**Clean error handling** → No panic/recover antipatterns, errors are values  
+**Type-safe events** → Generic-based pub/sub with compile-time type checking  
+
+### Why Choose go-infrastructure?
+
+Imagine deploying an app and forgetting to restart after config changes → this module handles it automatically. Less headaches, more productivity. Built for production with zero manual setup, it's the smart choice for Go developers seeking simplicity and power.  
 
 ---
 
@@ -38,13 +42,13 @@ package main
 
 import (
     "fmt"
-    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
-    "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
-    configResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
-    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
-    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
-    eventsIoc "github.com/janmbaco/go-infrastructure/eventsmanager/ioc"
-    diskIoc "github.com/janmbaco/go-infrastructure/disk/ioc"
+    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    "github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc"
+    configResolver "github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc/resolver"
+    logsIoc "github.com/janmbaco/go-infrastructure/v2/logs/ioc"
+    errorsIoc "github.com/janmbaco/go-infrastructure/v2/errors/ioc"
+    eventsIoc "github.com/janmbaco/go-infrastructure/v2/eventsmanager/ioc"
+    diskIoc "github.com/janmbaco/go-infrastructure/v2/disk/ioc"
 )
 
 type Config struct {
@@ -77,9 +81,9 @@ func main() {
 ```
 
 **What you get:**
-- Changes to `config.json` detected automatically
-- No restart needed
-- Safe defaults if file is missing
+- ✓ Changes to `config.json` detected automatically
+- ✓ No restart needed
+- ✓ Safe defaults if file is missing
 
 ---
 
@@ -92,10 +96,10 @@ package main
 
 import (
     "fmt"
-    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
-    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
-    errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
-    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
+    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    errorsIoc "github.com/janmbaco/go-infrastructure/v2/errors/ioc"
+    errorsResolver "github.com/janmbaco/go-infrastructure/v2/errors/ioc/resolver"
+    logsIoc "github.com/janmbaco/go-infrastructure/v2/logs/ioc"
 )
 
 func processData(data []byte) error {
@@ -125,9 +129,9 @@ func main() {
 ```
 
 **What you get:**
-- Centralized error logging
-- No panic-based control flow
-- Stack traces in logs automatically
+- ✓ Centralized error logging
+- ✓ No panic-based control flow
+- ✓ Stack traces in logs automatically
 
 ---
 
@@ -140,14 +144,14 @@ package main
 
 import (
     "fmt"
-    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
-    "github.com/janmbaco/go-infrastructure/eventsmanager"
-    "github.com/janmbaco/go-infrastructure/configuration/events"
-    eventsIoc "github.com/janmbaco/go-infrastructure/eventsmanager/ioc"
-    eventsResolver "github.com/janmbaco/go-infrastructure/eventsmanager/ioc/resolver"
-    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
-    logsResolver "github.com/janmbaco/go-infrastructure/logs/ioc/resolver"
-    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
+    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    "github.com/janmbaco/go-infrastructure/v2/eventsmanager"
+    "github.com/janmbaco/go-infrastructure/v2/configuration/events"
+    eventsIoc "github.com/janmbaco/go-infrastructure/v2/eventsmanager/ioc"
+    eventsResolver "github.com/janmbaco/go-infrastructure/v2/eventsmanager/ioc/resolver"
+    logsIoc "github.com/janmbaco/go-infrastructure/v2/logs/ioc"
+    logsResolver "github.com/janmbaco/go-infrastructure/v2/logs/ioc/resolver"
+    errorsIoc "github.com/janmbaco/go-infrastructure/v2/errors/ioc"
 )
 
 func main() {
@@ -176,9 +180,9 @@ func main() {
 ```
 
 **What you get:**
-- React to config changes without polling
-- Type-safe event handlers (compile-time checks)
-- Automatic error handling in subscribers
+- ✓ React to config changes without polling
+- ✓ Type-safe event handlers (compile-time checks)
+- ✓ Automatic error handling in subscribers
 
 ---
 
@@ -195,8 +199,8 @@ package main
 
 import (
     "flag"
-    "github.com/janmbaco/go-infrastructure/logs"
-    "github.com/janmbaco/go-infrastructure/server/facades"
+    "github.com/janmbaco/go-infrastructure/v2/logs"
+    "github.com/janmbaco/go-infrastructure/v2/server/facades"
 )
 
 func main() {
@@ -265,10 +269,12 @@ The official `janmbaco/singlepageapp:latest` image is built from this repository
 
 ### Use Cases
 
-**React/Vue/Angular Apps** - Zero-config SPA serving  
-**Static Site Hosting** - Production-ready with logging  
-**Microservices Frontend** - Containerized SPA delivery  
-**Development Servers** - Live reload on config changes
+**React/Vue/Angular Apps** → Zero-config SPA serving  
+**Static Site Hosting** → Production-ready with logging  
+**Microservices Frontend** → Containerized SPA delivery  
+**Development Servers** → Live reload on config changes  
+
+**Example:** For an e-commerce site, auto-reload payment configs without downtime → seamless updates.
 
 See `cmd/singlepageapp/main.go` and `server/facades/singlepageapp_facade.go` for full implementation.
 
@@ -277,7 +283,7 @@ See `cmd/singlepageapp/main.go` and `server/facades/singlepageapp_facade.go` for
 ## Installation
 
 ```bash
-go get github.com/janmbaco/go-infrastructure
+go get github.com/janmbaco/go-infrastructure/v2
 ```
 
 ---
@@ -290,9 +296,9 @@ go get github.com/janmbaco/go-infrastructure
 package main
 
 import (
-    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
-    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
-    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
+    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    logsIoc "github.com/janmbaco/go-infrastructure/v2/logs/ioc"
+    errorsIoc "github.com/janmbaco/go-infrastructure/v2/errors/ioc"
 )
 
 // Your custom module
@@ -328,8 +334,8 @@ func main() {
 package main
 
 import (
-    "github.com/janmbaco/go-infrastructure/eventsmanager"
-    "github.com/janmbaco/go-infrastructure/configuration/events"
+    "github.com/janmbaco/go-infrastructure/v2/eventsmanager"
+    "github.com/janmbaco/go-infrastructure/v2/configuration/events"
 )
 
 func main() {
@@ -358,7 +364,7 @@ func updateServices(cfg *AppConfig) {
 **Dependency Injection with Generics:**
 
 ```go
-import di "github.com/janmbaco/go-infrastructure/dependencyinjection"
+import di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
 
 // Type-safe registration
 di.RegisterSingleton[*UserService](register, func() *UserService {
@@ -373,7 +379,7 @@ service := di.Resolve[*UserService](resolver)
 **Event Management with Generics:**
 
 ```go
-import "github.com/janmbaco/go-infrastructure/eventsmanager"
+import "github.com/janmbaco/go-infrastructure/v2/eventsmanager"
 
 type UserCreatedEvent struct {
     UserID string
@@ -407,9 +413,9 @@ Modular DI container with type-safe registration and resolution.
 
 ```go
 import (
-    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
-    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
-    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
+    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    logsIoc "github.com/janmbaco/go-infrastructure/v2/logs/ioc"
+    errorsIoc "github.com/janmbaco/go-infrastructure/v2/errors/ioc"
 )
 
 // Build container with pre-defined modules
@@ -480,7 +486,7 @@ Structured logging with file rotation and configurable levels.
 #### Configuration
 
 ```go
-import "github.com/janmbaco/go-infrastructure/logs"
+import "github.com/janmbaco/go-infrastructure/v2/logs"
 
 logger := logs.NewLogger()
 
@@ -525,8 +531,8 @@ File-based configuration with automatic reload on changes.
 
 ```go
 import (
-    "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
-    configResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
+    "github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc"
+    configResolver "github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc/resolver"
 )
 
 type AppConfig struct {
@@ -559,8 +565,8 @@ fmt.Println("Port:", config.Port)
 
 ```go
 import (
-    "github.com/janmbaco/go-infrastructure/eventsmanager"
-    "github.com/janmbaco/go-infrastructure/configuration/events"
+    "github.com/janmbaco/go-infrastructure/v2/eventsmanager"
+    "github.com/janmbaco/go-infrastructure/v2/configuration/events"
 )
 
 // Subscribe to config changes
@@ -593,8 +599,8 @@ Centralized error catching without panic-based antipatterns.
 
 ```go
 import (
-    "github.com/janmbaco/go-infrastructure/errors"
-    errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
+    "github.com/janmbaco/go-infrastructure/v2/errors"
+    errorsResolver "github.com/janmbaco/go-infrastructure/v2/errors/ioc/resolver"
 )
 
 errorCatcher := errorsResolver.GetErrorCatcher(resolver)
@@ -615,7 +621,7 @@ errorCatcher.TryCatchError(
 #### Validation
 
 ```go
-import "github.com/janmbaco/go-infrastructure/errors"
+import "github.com/janmbaco/go-infrastructure/v2/errors"
 
 func ProcessUser(user *User, db *Database) error {
     // Validate parameters (returns error, no panic)
@@ -640,7 +646,7 @@ Type-safe publisher/subscriber pattern with generics.
 #### Event Definition
 
 ```go
-import "github.com/janmbaco/go-infrastructure/eventsmanager"
+import "github.com/janmbaco/go-infrastructure/v2/eventsmanager"
 
 type UserCreatedEvent struct {
     UserID string
@@ -654,8 +660,8 @@ type UserCreatedEvent struct {
 
 ```go
 import (
-    "github.com/janmbaco/go-infrastructure/eventsmanager"
-    eventsResolver "github.com/janmbaco/go-infrastructure/eventsmanager/ioc/resolver"
+    "github.com/janmbaco/go-infrastructure/v2/eventsmanager"
+    eventsResolver "github.com/janmbaco/go-infrastructure/v2/eventsmanager/ioc/resolver"
 )
 
 eventMgr := eventsResolver.GetEventManager(resolver)
@@ -688,8 +694,8 @@ HTTP/HTTPS server with graceful shutdown and configuration reload.
 ```go
 import (
     "net/http"
-    "github.com/janmbaco/go-infrastructure/server"
-    serverResolver "github.com/janmbaco/go-infrastructure/server/ioc/resolver"
+    "github.com/janmbaco/go-infrastructure/v2/server"
+    serverResolver "github.com/janmbaco/go-infrastructure/v2/server/ioc/resolver"
 )
 
 // Create listener builder
@@ -718,7 +724,7 @@ if err := <-finish; err != nil {
 #### Single Page App Serving
 
 ```go
-import "github.com/janmbaco/go-infrastructure/server"
+import "github.com/janmbaco/go-infrastructure/v2/server"
 
 spaHandler := server.NewSinglePageApp("./dist", "index.html")
 http.Handle("/", spaHandler)
@@ -734,7 +740,7 @@ GORM-based data access layer with multi-database support.
 
 ```go
 import (
-    "github.com/janmbaco/go-infrastructure/persistence/orm_base"
+    "github.com/janmbaco/go-infrastructure/v2/persistence/orm_base"
     "gorm.io/gorm"
 )
 
@@ -777,8 +783,8 @@ AES encryption/decryption service.
 
 ```go
 import (
-    "github.com/janmbaco/go-infrastructure/crypto"
-    cryptoResolver "github.com/janmbaco/go-infrastructure/crypto/ioc/resolver"
+    "github.com/janmbaco/go-infrastructure/v2/crypto"
+    cryptoResolver "github.com/janmbaco/go-infrastructure/v2/crypto/ioc/resolver"
 )
 
 key := []byte("my-32-byte-encryption-key!!!") // Must be 16, 24, or 32 bytes
@@ -801,8 +807,8 @@ File change notification and utilities.
 
 ```go
 import (
-    "github.com/janmbaco/go-infrastructure/disk"
-    diskResolver "github.com/janmbaco/go-infrastructure/disk/ioc/resolver"
+    "github.com/janmbaco/go-infrastructure/v2/disk"
+    diskResolver "github.com/janmbaco/go-infrastructure/v2/disk/ioc/resolver"
 )
 
 fileNotifier := diskResolver.GetFileChangedNotifier(resolver, "config.json")
@@ -817,23 +823,14 @@ fileNotifier.Subscribe(func() {
 
 ### Module-Based Design
 
-```
-┌─────────────────────────────────────────────────┐
-│            Application Layer                    │
-│  (Your application using go-infrastructure)     │
-└───────────────────┬─────────────────────────────┘
-                    │
-┌───────────────────▼─────────────────────────────┐
-│         Dependency Injection Container          │
-│  (Builder → Modules → Register → Resolver)      │
-└───────────────────┬─────────────────────────────┘
-                    │
-        ┌───────────┼───────────┬─────────┬─────────────┐
-        │           │           │         │             │
-┌───────▼────┐ ┌───▼────┐ ┌───▼────┐ ┌─▼──────┐ ┌────▼─────┐
-│   Logs     │ │ Errors │ │ Events │ │ Config │ │  Server  │
-│   Module   │ │ Module │ │ Module │ │ Module │ │  Module  │
-└────────────┘ └────────┘ └────────┘ └────────┘ └──────────┘
+```mermaid
+graph TD
+    A[Application Layer<br/>Your app using go-infrastructure] --> B[Dependency Injection Container<br/>Builder → Modules → Register → Resolver]
+    B --> C[Logs Module]
+    B --> D[Errors Module]
+    B --> E[Events Module]
+    B --> F[Config Module]
+    B --> G[Server Module]
 ```
 
 ### Key Principles
@@ -855,7 +852,7 @@ package mypackage_test
 
 import (
     "testing"
-    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
+    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
 )
 
 func TestMyService(t *testing.T) {
@@ -905,16 +902,19 @@ go test ./dependencyinjection
 
 ## Troubleshooting
 
+<details>
+<summary>Expandir para ver problemas comunes y soluciones</summary>
+
 ### Issue: Module Import Error
 
 **Error:**
 ```
-cannot find package "github.com/janmbaco/go-infrastructure/..."
+cannot find package "github.com/janmbaco/go-infrastructure/v2/..."
 ```
 
 **Solution:**
 ```bash
-go get github.com/janmbaco/go-infrastructure
+go get github.com/janmbaco/go-infrastructure/v2
 go mod tidy
 ```
 
@@ -966,6 +966,8 @@ if user == nil {
 }
 ```
 
+</details>
+
 ---
 
 ## Contributing
@@ -983,7 +985,7 @@ Contributions are welcome! Please:
 
 ```bash
 # Clone repository
-git clone https://github.com/janmbaco/go-infrastructure.git
+git clone https://github.com/janmbaco/go-infrastructure/v2.git
 cd go-infrastructure
 
 # Install dependencies
@@ -1006,7 +1008,10 @@ go tool cover -html=coverage.out
 
 - [UPGRADE-2.0.md](./UPGRADE-2.0.md) - Migration guide from v1.x
 - [CHANGELOG.md](./CHANGELOG.md) - Version history and release notes
-- [GitHub Issues](https://github.com/janmbaco/go-infrastructure/issues) - Report bugs or request features
+- [GitHub Issues](https://github.com/janmbaco/go-infrastructure/v2/issues) - Report bugs or request features
+- [Go Weekly](https://golangweekly.com/) - Stay updated with Go ecosystem news
+- [Tutorial: Dependency Injection in Go](https://medium.com/@janmbaco/a-friendly-guide-to-dependency-injection-in-go-03b19e1195c0) - Step-by-step guide
+- [Comparison: go-infrastructure vs. fx](https://dev.to/jack_apolo_beb30743942cf8/go-di-libraries-comparison-go-infrastructure-vs-fx-4jni) - Why choose this library
 
 ---
 

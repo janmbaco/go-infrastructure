@@ -3,9 +3,9 @@ package server
 import (
 	"reflect"
 
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/logs"
+	"github.com/janmbaco/go-infrastructure/v2/configuration"
+	"github.com/janmbaco/go-infrastructure/v2/errors"
+	"github.com/janmbaco/go-infrastructure/v2/logs"
 )
 
 // ListenerBuilder defines a object responsible to builds listeners

@@ -6,18 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
-	fileConfigResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
-	"github.com/janmbaco/go-infrastructure/dependencyinjection"
-	"github.com/janmbaco/go-infrastructure/disk"
-	diskIoc "github.com/janmbaco/go-infrastructure/disk/ioc"
-	errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
-	eventsIoc "github.com/janmbaco/go-infrastructure/eventsmanager/ioc"
-	logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
-	"github.com/janmbaco/go-infrastructure/server"
-	serverIoc "github.com/janmbaco/go-infrastructure/server/ioc"
-	serverResolver "github.com/janmbaco/go-infrastructure/server/ioc/resolver"
+	"github.com/janmbaco/go-infrastructure/v2/configuration"
+	"github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc"
+	fileConfigResolver "github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc/resolver"
+	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+	"github.com/janmbaco/go-infrastructure/v2/disk"
+	diskIoc "github.com/janmbaco/go-infrastructure/v2/disk/ioc"
+	errorsIoc "github.com/janmbaco/go-infrastructure/v2/errors/ioc"
+	eventsIoc "github.com/janmbaco/go-infrastructure/v2/eventsmanager/ioc"
+	logsIoc "github.com/janmbaco/go-infrastructure/v2/logs/ioc"
+	"github.com/janmbaco/go-infrastructure/v2/server"
+	serverIoc "github.com/janmbaco/go-infrastructure/v2/server/ioc"
+	serverResolver "github.com/janmbaco/go-infrastructure/v2/server/ioc/resolver"
 )
 
 // / <summary>
@@ -40,7 +40,7 @@ const (
 	secondAddress  = ":18090"
 )
 
-func (lt *ListenerTests) setup(t *testing.T) { //nolint:unparam // testing.T parameter kept for consistency with test method signatures
+func (lt *ListenerTests) setup(_ *testing.T) { //nolint:unparam // testing.T parameter kept for consistency with test method signatures
 	lt.configFilePath = testConfigFile
 
 	// Setup IoC container
