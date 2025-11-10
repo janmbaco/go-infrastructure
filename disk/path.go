@@ -1,7 +1,6 @@
 package disk
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,51 +13,51 @@ func ExistsPath(path string) bool {
 }
 
 // CreateFile create a file
-func CreateFile(filePath string, content []byte) {
+func CreateFile(filePath string, content []byte) error {
 	fc, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
 	defer func() {
 		_ = fc.Close()
 	}()
 
-	if err == nil {
-		_, _ = fc.Write(content)
-	} else {
-		panic(err)
+	if _, err := fc.Write(content); err != nil {
+		return err
 	}
+	return nil
 }
 
 // Copy a file
-func Copy(src, dst string) {
+func Copy(src, dst string) error {
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	if !sourceFileStat.Mode().IsRegular() {
-		panic(errors.New(fmt.Sprintf("%s is not a regular file", src)))
+		return fmt.Errorf("%s is not a regular file", src)
 	}
 
 	source, err := os.Open(src)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer func() { _ = source.Close() }()
 
 	destination, err := os.Create(dst)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer func() { _ = destination.Close() }()
-	_, err = io.Copy(destination, source)
-	if err != nil {
-		panic(err)
+
+	if _, err = io.Copy(destination, source); err != nil {
+		return err
 	}
+	return nil
 }
 
 // DeleteFile deletes a file
-func DeleteFile(filePath string) {
-	err := os.Remove(filePath)
-	if err != nil {
-		panic(err)
-	}
+func DeleteFile(filePath string) error {
+	return os.Remove(filePath)
 }

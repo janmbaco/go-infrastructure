@@ -4,18 +4,18 @@ import (
 	"github.com/janmbaco/go-infrastructure/errors"
 )
 
-// FileConfigHandlerError is the struct of an error occurs in FileConfigHandler object
-type FileConfigHandlerError interface {
+// HandlerError is the struct of an error occurs in FileConfigHandler object
+type HandlerError interface {
 	errors.CustomError
-	GetErrorType() FileConfigHandlerErrorType
+	GetErrorType() HandlerErrorType
 }
 
 type fileConfigHandlerError struct {
 	errors.CustomizableError
-	ErrorType FileConfigHandlerErrorType
+	ErrorType HandlerErrorType
 }
 
-func newFileConfigHandlerError(errorType FileConfigHandlerErrorType, message string, internalError error) FileConfigHandlerError {
+func newFileConfigHandlerError(errorType HandlerErrorType, message string, internalError error) HandlerError {
 	return &fileConfigHandlerError{
 		CustomizableError: errors.CustomizableError{
 			Message:       message,
@@ -25,14 +25,14 @@ func newFileConfigHandlerError(errorType FileConfigHandlerErrorType, message str
 	}
 }
 
-func (e *fileConfigHandlerError) GetErrorType() FileConfigHandlerErrorType {
+func (e *fileConfigHandlerError) GetErrorType() HandlerErrorType {
 	return e.ErrorType
 }
 
-// FileConfigHandlerErrorType is the type of the errors of FileConfigHandler
-type FileConfigHandlerErrorType uint8
+// HandlerErrorType is the type of the errors of FileConfigHandler
+type HandlerErrorType uint8
 
 const (
-	UnexpectedError FileConfigHandlerErrorType = iota
+	UnexpectedError HandlerErrorType = iota
 	OldConfigNilError
 )

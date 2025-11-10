@@ -9,8 +9,8 @@ type CustomError interface {
 
 // CustomizableError is a error with a error with a customizable message
 type CustomizableError struct {
-	Message       string
 	InternalError error
+	Message       string
 }
 
 func (e *CustomizableError) Error() string {

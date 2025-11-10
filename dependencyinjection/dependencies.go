@@ -2,7 +2,6 @@ package dependencyinjection
 
 import (
 	"fmt"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"reflect"
 	"sync"
 )
@@ -19,8 +18,8 @@ type DependencyObject interface {
 }
 
 type DependencyKey struct {
-	Tenant string
 	Iface  reflect.Type
+	Tenant string
 }
 
 type dependencies struct {
@@ -33,26 +32,27 @@ func newDependencies() Dependencies {
 }
 
 func (d *dependencies) Set(key DependencyKey, object DependencyObject) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"object": object})
 	d.objects.Store(key, object)
 }
 
 func (d *dependencies) Get(key DependencyKey) DependencyObject {
 	realKey := key
 	if bind, ok := d.binds.Load(key); ok {
-		realKey = bind.(DependencyKey)
+		if realKeyBind, ok := bind.(DependencyKey); ok {
+			realKey = realKeyBind
+		}
 	}
 	if object, ok := d.objects.Load(realKey); ok {
-		return object.(DependencyObject)
+		if depObj, ok := object.(DependencyObject); ok {
+			return depObj
+		}
 	}
 	panic(fmt.Errorf("%v is not registered as a dependency", key.Iface.Name()))
 }
 
-func (d *dependencies) Bind(keyFrom DependencyKey, keyTo DependencyKey) {
+func (d *dependencies) Bind(keyFrom, keyTo DependencyKey) {
 	d.binds.Store(keyFrom, keyTo)
 }
-
-
 
 // FileConfigHandlerErrorType is the type of the errors of FileConfigHandler
 type dependecyType uint8
@@ -64,10 +64,10 @@ const (
 )
 
 type dependencyObject struct {
-	provider    interface{}
-	object      interface{}
+	object        interface{}
+	provider      interface{}
+	argNames      map[int]string
 	dependecyType dependecyType
-	argNames    map[uint]string
 }
 
 func (do *dependencyObject) Create(params map[string]interface{}, dependencies Dependencies, scopedObjects map[DependencyObject]interface{}) interface{} {
@@ -76,9 +76,9 @@ func (do *dependencyObject) Create(params map[string]interface{}, dependencies D
 		return do.object
 	}
 
-	if obj, isContained :=  scopedObjects[do]; isContained {
+	if obj, isContained := scopedObjects[do]; isContained {
 		return obj
-	} 
+	}
 
 	functionValue := reflect.ValueOf(do.provider)
 	functionType := reflect.TypeOf(do.provider)
@@ -88,8 +88,8 @@ func (do *dependencyObject) Create(params map[string]interface{}, dependencies D
 	args := make([]reflect.Value, 0)
 	if functionType.NumIn() > 0 {
 		for i := 0; i < functionType.NumIn(); i++ {
-			var name = do.argNames[uint(i)]
-			if object, isInParamas := params[do.argNames[uint(i)]]; name != "" && isInParamas {
+			var name = do.argNames[i]
+			if object, isInParamas := params[do.argNames[i]]; name != "" && isInParamas {
 				args = append(args, reflect.ValueOf(object))
 			} else {
 				args = append(args, reflect.ValueOf(dependencies.Get(DependencyKey{Iface: functionType.In(i)}).Create(params, dependencies, scopedObjects)))
@@ -97,14 +97,26 @@ func (do *dependencyObject) Create(params map[string]interface{}, dependencies D
 		}
 	}
 
-	result := functionValue.Call(args)[0].Interface()
-	if result != nil {
-		switch do.dependecyType { 
-			case _Singleton:
-				do.object = result
-			case _ScopedType:
-				scopedObjects[do] = result
+	results := functionValue.Call(args)
+
+	// Handle (value, error) return pattern
+	if len(results) == 2 {
+		errValue := results[1]
+		if !errValue.IsNil() {
+			if err, ok := errValue.Interface().(error); ok {
+				panic(fmt.Errorf("provider error: %w", err))
 			}
+		}
+	}
+
+	result := results[0].Interface()
+	if result != nil {
+		switch do.dependecyType {
+		case _Singleton:
+			do.object = result
+		case _ScopedType:
+			scopedObjects[do] = result
+		}
 	}
 
 	return result

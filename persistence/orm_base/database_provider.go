@@ -1,17 +1,23 @@
-package orm_base
+package orm_base //nolint:revive // established package name, changing would break API
 
 import (
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"gorm.io/gorm"
 )
 
-func NewDB(dialectorResolver DialectorResolver, info *DatabaseInfo, config *gorm.Config, tables []interface{}) *gorm.DB {
-	errorschecker.CheckNilParameter(map[string]interface{}{"dialectorResolver": dialectorResolver, "info": info, "config": config})
-
-	db, err := gorm.Open(dialectorResolver.Resolve(info), config)
-	errorschecker.TryPanic(err)
-	for _, table := range tables {
-		errorschecker.TryPanic(db.AutoMigrate(table))
+func NewDB(dialectorResolver DialectorResolver, info *DatabaseInfo, config *gorm.Config, tables []interface{}) (*gorm.DB, error) {
+	dialector, err := dialectorResolver.Resolve(info)
+	if err != nil {
+		return nil, err
 	}
-	return db
+
+	db, err := gorm.Open(dialector, config)
+	if err != nil {
+		return nil, err
+	}
+	for _, table := range tables {
+		if err := db.AutoMigrate(table); err != nil {
+			return nil, err
+		}
+	}
+	return db, nil
 }

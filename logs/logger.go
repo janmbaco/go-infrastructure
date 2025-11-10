@@ -2,7 +2,6 @@ package logs
 
 import (
 	"fmt"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
 	"io"
 	"log"
 	"os"
@@ -49,6 +48,8 @@ type Logger interface {
 	SetFileLogLevel(level LogLevel)
 	GetErrorLogger() *log.Logger
 	SetDir(string)
+	Mute()
+	Unmute()
 }
 
 type logger struct {
@@ -57,6 +58,7 @@ type logger struct {
 	activeFileLogger    map[LogLevel]bool
 	errorLogger         *log.Logger
 	logsDir             string
+	muted               bool
 }
 
 func NewLogger() Logger {
@@ -90,6 +92,9 @@ func (logger *logger) Printlnf(level LogLevel, format string, a ...interface{}) 
 }
 
 func (logger *logger) Println(level LogLevel, message string) {
+	if logger.muted {
+		return
+	}
 	var writers []io.Writer
 	if logger.activeConsoleLogger[level] {
 		if level < Error {
@@ -99,13 +104,19 @@ func (logger *logger) Println(level LogLevel, message string) {
 		}
 	}
 
-	if len(logger.logsDir) > 0 && logger.activeFileLogger[level] {
+	if logger.logsDir != "" && logger.activeFileLogger[level] {
 		year, month, day := time.Now().Date()
 		execFile := filepath.Base(os.Args[0])
 
 		logFile := logger.logsDir + "/" + execFile + "-" + strconv.Itoa(year) + strconv.Itoa(int(month)) + strconv.Itoa(day) + ".log"
-		_ = os.MkdirAll(filepath.Dir(logFile), 0666)
-		osFile, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err := os.MkdirAll(filepath.Dir(logFile), 0o755); err != nil {
+			log.Println("impossible to create log directory:", err)
+			return
+		}
+		osFile, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
+		if err != nil {
+			log.Println("impossible to log in file:", err)
+		}
 		if err != nil {
 			log.Println("impossible to log in file:", err)
 		}
@@ -144,7 +155,6 @@ func (logger *logger) GetErrorLogger() *log.Logger {
 }
 
 func (logger *logger) PrintError(level LogLevel, err error) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"err": err})
 	logger.Println(level, err.Error())
 }
 
@@ -211,6 +221,14 @@ func (logger *logger) Fatalf(format string, a ...interface{}) {
 
 func (logger *logger) TryFatal(err error) {
 	logger.PrintError(Fatal, err)
+}
+
+func (logger *logger) Mute() {
+	logger.muted = true
+}
+
+func (logger *logger) Unmute() {
+	logger.muted = false
 }
 
 func setLevel(level LogLevel) map[LogLevel]bool {

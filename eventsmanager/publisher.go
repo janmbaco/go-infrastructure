@@ -1,69 +1,76 @@
 package eventsmanager
 
 import (
-	"github.com/janmbaco/go-infrastructure/errors"
-	"github.com/janmbaco/go-infrastructure/errors/errorschecker"
-	"reflect"
 	"sync"
+
+	"github.com/janmbaco/go-infrastructure/logs"
 )
 
 // Publisher defines an object responsible to publish events
-type Publisher interface {
-	Publish(event EventObject)
+type Publisher[T EventObject[T]] interface {
+	Publish(event T)
 }
 
-type (
-	publisher struct {
-		subscriptions   SubscriptionsGetter
-		eventPublishers sync.Map
-		errorCatcher    errors.ErrorCatcher
-	}
-	eventPublisher struct {
-		isPublishing chan bool
-		errorCatcher errors.ErrorCatcher
-	}
-)
+type publisher[T EventObject[T]] struct {
+	subscriptions SubscriptionsGetter[T]
+	logger        logs.Logger
+}
 
 // NewPublisher returns a Publisher
-func NewPublisher(subscriptions SubscriptionsGetter, errorCatcher errors.ErrorCatcher) Publisher {
-	errorschecker.CheckNilParameter(map[string]interface{}{"subscriptions": subscriptions, "errorCatcher": errorCatcher})
-	return &publisher{subscriptions: subscriptions, errorCatcher: errorCatcher}
+func NewPublisher[T EventObject[T]](subscriptions SubscriptionsGetter[T], logger logs.Logger) Publisher[T] {
+	return &publisher[T]{subscriptions: subscriptions, logger: logger}
 }
 
-// Publish publishes a event
-func (p *publisher) Publish(event EventObject) {
-	errorschecker.CheckNilParameter(map[string]interface{}{"event": event})
-	typ := reflect.Indirect(reflect.ValueOf(event)).Type()
-	ePublisher, _ := p.eventPublishers.LoadOrStore(typ, &eventPublisher{isPublishing: make(chan bool, 1), errorCatcher: p.errorCatcher})
-	ePublisher.(*eventPublisher).publish(event, p.subscriptions.GetAlls(event))
+// Publish publishes an event
+func (p *publisher[T]) Publish(event T) {
+	p.publishEvent(event, p.subscriptions.GetAlls())
 }
 
-func (e *eventPublisher) publish(event EventObject, functions []reflect.Value) {
-	e.isPublishing <- true
-	wg := sync.WaitGroup{}
+func (p *publisher[T]) publishEvent(event T, functions []func(T)) {
+	if event.IsParallelPropagation() {
+		p.publishInParallel(event, functions)
+	} else {
+		p.publishSequentially(event, functions)
+	}
+}
+
+func (p *publisher[T]) publishInParallel(event T, functions []func(T)) {
+	var wg sync.WaitGroup
+	p.iterateAndExecute(event, functions, func(fn func(T)) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p.executeWithPanicRecovery(fn, event, nil)
+		}()
+	})
+	wg.Wait()
+}
+
+func (p *publisher[T]) publishSequentially(event T, functions []func(T)) {
+	p.iterateAndExecute(event, functions, func(fn func(T)) {
+		p.executeWithPanicRecovery(fn, event, nil)
+	})
+}
+
+func (p *publisher[T]) iterateAndExecute(event T, functions []func(T), executor func(func(T))) {
 	for _, function := range functions {
 		if event.StopPropagation() {
 			break
 		}
-		wg.Add(1)
-		e.errorCatcher.OnErrorContinue(func() {
-			callback := func(function reflect.Value) {
-				if event.HasEventArgs() {
-					function.Call([]reflect.Value{
-						reflect.ValueOf(event.GetEventArgs()),
-					})
-				} else {
-					function.Call(make([]reflect.Value, 0))
-				}
-				wg.Done()
-			}
-			if event.IsParallelPropagation() {
-				go callback(function)
-			} else {
-				callback(function)
-			}
-		})
+		executor(function)
 	}
-	wg.Wait()
-	<-e.isPublishing
+}
+
+func (p *publisher[T]) executeWithPanicRecovery(fn func(T), event T, done func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			if p.logger != nil {
+				p.logger.Errorf("panic in event handler: %v", r)
+			}
+		}
+		if done != nil {
+			done()
+		}
+	}()
+	fn(event)
 }

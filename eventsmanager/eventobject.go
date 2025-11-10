@@ -1,12 +1,8 @@
 package eventsmanager
 
-import "reflect"
-
-// EventObject is the definition of a object responsible to make an event
-type EventObject interface {
-	GetEventArgs() interface{}
-	HasEventArgs() bool
+// EventObject is the definition of an object responsible to make an event
+type EventObject[T any] interface {
+	GetEventArgs() T
 	StopPropagation() bool
 	IsParallelPropagation() bool
-	GetTypeOfFunc() reflect.Type
 }

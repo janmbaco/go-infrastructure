@@ -1,699 +1,1020 @@
 # Go Infrastructure
+
 [![Go Report Card](https://goreportcard.com/badge/github.com/janmbaco/go-infrastructure)](https://goreportcard.com/report/github.com/janmbaco/go-infrastructure)
+[![Go Version](https://img.shields.io/badge/go-1.24+-blue.svg)](https://golang.org/dl/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-This is an infrastructure project in Go that serves the Go-ReverseProxy-SSL and Saprocate projects. It also aims to be a common base for projects in Go.
+**Build production-ready Go applications faster.** Common infrastructure solved: logging, configuration reload, dependency injection, events, and error handling—all working together out of the box.
 
-## Table of Contents
-- [Installation](#installation)
-- [Usage](#usage)
-- [Packages](#packages)
-  - [Dependency Injection](#dependency-injection)
-  - [Logs](#logs)
-  - [Error Handler](#error-handler)
-  - [Event](#event)
-  - [Disk](#disk)
-  - [Config](#config)
-  - [Server](#server)
-  - [Crypto](#crypto)
-  - [Persistence](#persistence)
-- [Contributing](#contributing)
-- [License](#license)
+Used in production by [go-reverseproxy-ssl](https://github.com/janmbaco/go-reverseproxy-ssl) and Saprocate.
+
+---
+
+## Why go-infrastructure?
+
+**No more boilerplate** - DI container, logging, and config reload already wired  
+**Live config reload** - Change JSON files, app adapts automatically without restart  
+**Clean error handling** - No panic/recover antipatterns, errors are values  
+**Type-safe events** - Generic-based pub/sub with compile-time type checking  
+
+---
+
+## Quick Start
+
+### Example 1: Auto-Reloading Configuration
+
+Your app reads `config.json` and **automatically reloads** when the file changes—no restart needed.
+
+**config.json:**
+```json
+{
+  "database": "postgres://localhost/myapp",
+  "port": 8080
+}
+```
+
+**main.go:**
+```go
+package main
+
+import (
+    "fmt"
+    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
+    "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
+    configResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
+    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
+    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
+    eventsIoc "github.com/janmbaco/go-infrastructure/eventsmanager/ioc"
+    diskIoc "github.com/janmbaco/go-infrastructure/disk/ioc"
+)
+
+type Config struct {
+    Database string `json:"database"`
+    Port     int    `json:"port"`
+}
+
+func main() {
+    container := di.NewBuilder().
+        AddModule(logsIoc.NewLogsModule()).
+        AddModule(errorsIoc.NewErrorsModule()).
+        AddModule(eventsIoc.NewEventsModule()).
+        AddModule(diskIoc.NewDiskModule()).
+        AddModule(ioc.NewConfigurationModule()).
+        MustBuild()
+    
+    resolver := container.Resolver()
+    configHandler := configResolver.GetFileConfigHandler(
+        resolver,
+        "config.json",
+        &Config{Port: 8080}, // Default if file missing
+    )
+    
+    cfg := configHandler.GetConfig().(*Config)
+    fmt.Printf("App running on port %d\n", cfg.Port)
+    
+    // App automatically picks up changes to config.json
+    select {} // Keep running
+}
+```
+
+**What you get:**
+- Changes to `config.json` detected automatically
+- No restart needed
+- Safe defaults if file is missing
+
+---
+
+### Example 2: Clean Error Handling
+
+No panic/recover antipatterns. Catch errors centrally and log them.
+
+```go
+package main
+
+import (
+    "fmt"
+    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
+    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
+    errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
+    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
+)
+
+func processData(data []byte) error {
+    if len(data) == 0 {
+        return fmt.Errorf("empty data")
+    }
+    // Process...
+    return nil
+}
+
+func main() {
+    container := di.NewBuilder().
+        AddModule(logsIoc.NewLogsModule()).
+        AddModule(errorsIoc.NewErrorsModule()).
+        MustBuild()
+    
+    errorCatcher := errorsResolver.GetErrorCatcher(container.Resolver())
+    
+    errorCatcher.TryCatchError(
+        func() error { return processData([]byte{}) },
+        func(err error) {
+            // Error automatically logged
+            fmt.Println("Operation failed:", err)
+        },
+    )
+}
+```
+
+**What you get:**
+- Centralized error logging
+- No panic-based control flow
+- Stack traces in logs automatically
+
+---
+
+### Example 3: Event-Driven Architecture
+
+React to configuration changes or business events with type-safe subscribers.
+
+```go
+package main
+
+import (
+    "fmt"
+    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
+    "github.com/janmbaco/go-infrastructure/eventsmanager"
+    "github.com/janmbaco/go-infrastructure/configuration/events"
+    eventsIoc "github.com/janmbaco/go-infrastructure/eventsmanager/ioc"
+    eventsResolver "github.com/janmbaco/go-infrastructure/eventsmanager/ioc/resolver"
+    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
+    logsResolver "github.com/janmbaco/go-infrastructure/logs/ioc/resolver"
+    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
+)
+
+func main() {
+    container := di.NewBuilder().
+        AddModule(logsIoc.NewLogsModule()).
+        AddModule(errorsIoc.NewErrorsModule()).
+        AddModule(eventsIoc.NewEventsModule()).
+        MustBuild()
+    
+    resolver := container.Resolver()
+    eventMgr := eventsResolver.GetEventManager(resolver)
+    logger := logsResolver.GetLogger(resolver)
+    
+    // Subscribe to config changes
+    modifiedSubs := eventsmanager.NewSubscriptions[events.ModifiedEvent]()
+    modifiedSubs.Add(func(evt events.ModifiedEvent) {
+        fmt.Println("Config changed! Reloading services...")
+    })
+    
+    modifiedPub := eventsmanager.NewPublisher(modifiedSubs, logger)
+    eventsmanager.Register(eventMgr, modifiedPub)
+    
+    // Publish events
+    eventsmanager.Publish(eventMgr, events.ModifiedEvent{})
+}
+```
+
+**What you get:**
+- React to config changes without polling
+- Type-safe event handlers (compile-time checks)
+- Automatic error handling in subscribers
+
+---
+
+## Complete Example: Production-Ready SPA Server
+
+See how all modules work together in a real production application: a Single Page Application server with live config reload.
+
+This example is included in `cmd/singlepageapp` and can be deployed as a Docker container.
+
+### The Application
+
+```go
+package main
+
+import (
+    "flag"
+    "github.com/janmbaco/go-infrastructure/logs"
+    "github.com/janmbaco/go-infrastructure/server/facades"
+)
+
+func main() {
+    port := flag.String("port", ":8080", "port to listen on")
+    staticPath := flag.String("static", "./static", "path to static files")
+    index := flag.String("index", "index.html", "index file name")
+    flag.Parse()
+
+    logger := logs.NewLogger()
+    logger.Info("Starting SPA server on " + *port)
+    
+    facades.SinglePageAppStart(*port, *staticPath, *index)
+}
+```
+
+### What This Gives You
+
+**Automatic Configuration Reload** - Edit config file, server reconfigures without restart  
+**Production Logging** - Daily rotated logs with configurable levels  
+**Error Recovery** - Crashes are caught and logged, server stays running  
+**Event-Driven** - React to config changes via type-safe events  
+**Dockerized** - Ready-to-deploy container image
+
+### How It Works
+
+The `SinglePageAppStart` facade wires together:
+
+1. **DI Container** - Manages all dependencies (logger, error catcher, config handler)
+2. **File Config Handler** - Monitors `{app}.json` for changes
+3. **Event Manager** - Publishes config change events
+4. **Listener** - HTTP server that restarts on config changes
+5. **Single Page App Handler** - Serves static files with SPA routing
+
+### Configuration File
+
+**app.json:**
+```json
+{
+  "port": ":8080",
+  "static_path": "./dist",
+  "index": "index.html"
+}
+```
+
+Edit this file while the server is running - it automatically reloads.
+
+### Docker Deployment
+
+**Using Official Image:**
+```bash
+docker run -d \
+  -p 8080:8080 \
+  -v $(pwd)/dist:/app/static \
+  janmbaco/singlepageapp:latest \
+  -port :8080 \
+  -static /app/static \
+  -index index.html
+```
+
+**Build Your Own:**
+```bash
+docker build -f server/facades/Dockerfile -t myapp:latest .
+```
+
+The official `janmbaco/singlepageapp:latest` image is built from this repository and published to Docker Hub on each release.
+
+### Use Cases
+
+**React/Vue/Angular Apps** - Zero-config SPA serving  
+**Static Site Hosting** - Production-ready with logging  
+**Microservices Frontend** - Containerized SPA delivery  
+**Development Servers** - Live reload on config changes
+
+See `cmd/singlepageapp/main.go` and `server/facades/singlepageapp_facade.go` for full implementation.
+
+---
 
 ## Installation
-
-To install the package, use `go get`:
 
 ```bash
 go get github.com/janmbaco/go-infrastructure
 ```
 
-## Usage
+---
 
-### Basic Example
+## Common Patterns
+
+### Pattern 1: Build a Modular DI Container
 
 ```go
 package main
 
 import (
-    "github.com/janmbaco/go-infrastructure/logs"
+    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
+    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
+    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
 )
 
+// Your custom module
+type MyAppModule struct{}
+
+func (m *MyAppModule) RegisterServices(register di.Register) error {
+    register.AsSingleton(
+        new(*UserService),
+        func() *UserService { return &UserService{} },
+        nil,
+    )
+    return nil
+}
+
 func main() {
-    logger := logs.NewLogger()
-    logger.Info("This is an informational message")
+    // Build container with multiple modules
+    container := di.NewBuilder().
+        AddModule(logsIoc.NewLogsModule()).
+        AddModule(errorsIoc.NewErrorsModule()).
+        AddModule(&MyAppModule{}).
+        MustBuild()
+    
+    resolver := container.Resolver()
+    // Use services...
 }
 ```
 
-## Packages
+---
+
+### Pattern 2: React to Configuration Changes
+
+```go
+package main
+
+import (
+    "github.com/janmbaco/go-infrastructure/eventsmanager"
+    "github.com/janmbaco/go-infrastructure/configuration/events"
+)
+
+func main() {
+    // ... setup container and configHandler ...
+    
+    // Subscribe to config changes
+    modifiedSubs := eventsmanager.NewSubscriptions[events.ModifiedEvent]()
+    modifiedSubs.Add(func(evt events.ModifiedEvent) {
+        newCfg := configHandler.GetConfig().(*AppConfig)
+        updateServices(newCfg)
+    })
+    
+    modifiedPub := eventsmanager.NewPublisher(modifiedSubs, logger)
+    eventsmanager.Register(eventManager, modifiedPub)
+}
+
+func updateServices(cfg *AppConfig) {
+    // Reconfigure services without restart
+}
+```
+
+---
+
+### Pattern 3: Type-Safe Generics
+
+**Dependency Injection with Generics:**
+
+```go
+import di "github.com/janmbaco/go-infrastructure/dependencyinjection"
+
+// Type-safe registration
+di.RegisterSingleton[*UserService](register, func() *UserService {
+    return &UserService{}
+})
+
+// Type-safe resolution
+service := di.Resolve[*UserService](resolver)
+// No type assertion needed
+```
+
+**Event Management with Generics:**
+
+```go
+import "github.com/janmbaco/go-infrastructure/eventsmanager"
+
+type UserCreatedEvent struct {
+    UserID string
+}
+
+// Type-safe subscriptions
+subs := eventsmanager.NewSubscriptions[UserCreatedEvent]()
+subs.Add(func(evt UserCreatedEvent) {
+    // evt is typed, no cast needed
+    fmt.Println("User created:", evt.UserID)
+})
+
+pub := eventsmanager.NewPublisher(subs, logger)
+eventsmanager.Register(eventMgr, pub)
+
+// Type-safe publish
+eventsmanager.Publish(eventMgr, UserCreatedEvent{UserID: "123"})
+```
 
 ### Dependency Injection
-Provides a container for managing dependencies within an application.
 
-#### Definition
-`container.go` defines the interface for a container responsible for managing dependencies.
+---
 
-#### Functions
-- `Register() Register`: Gets the object responsible for registering dependencies.
-- `Resolver() Resolver`: Gets the object responsible for resolving dependencies.
-- `NewContainer() Container`: Returns a new container for managing dependencies.
+## Core Modules
 
-#### Practical Example
-**Example:**
+### Dependency Injection
+
+Modular DI container with type-safe registration and resolution.
+
+#### Builder Pattern
 
 ```go
-package main
-
 import (
-    "github.com/janmbaco/go-infrastructure/dependencyinjection"
+    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
+    logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
+    errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
 )
 
-func main() {
-    container := dependencyinjection.NewContainer()
-    register := container.Register()
-    resolver := container.Resolver()
+// Build container with pre-defined modules
+container := di.NewBuilder().
+    AddModule(logsIoc.NewLogsModule()).
+    AddModule(errorsIoc.NewErrorsModule()).
+    AddModule(customModule).
+    MustBuild()
 
-    register.AsSingleton(new(MyService), func() *MyService {
-        return &MyService{}
-    }, nil)
+// Or with custom registration
+container := di.NewBuilder().
+    Register(func(r di.Register) {
+        r.AsSingleton(new(*MyService), NewMyService, nil)
+    }).
+    MustBuild()
+```
 
-    myService := resolver.Get(new(MyService)).(*MyService)
-    myService.DoSomething()
+#### Module Definition
+
+```go
+type MyModule struct{}
+
+func NewMyModule() di.Module {
+    return &MyModule{}
 }
 
-type MyService struct{}
-
-func (s *MyService) DoSomething() {
-    println("Service is doing something.")
+func (m *MyModule) RegisterServices(register di.Register) error {
+    register.AsSingleton(
+        new(*MyService),
+        func() *MyService { return &MyService{} },
+        nil,
+    )
+    return nil
 }
 ```
 
-### Logs
-Provides a logging service that allows writing to a log file from a logging level (Trace, Info, Warning, Error, Fatal).
-
-#### Example
+#### Generic Registration
 
 ```go
-package main
+// Type-safe registration
+di.RegisterSingleton[*MyService](register, func() *MyService {
+    return &MyService{}
+})
 
-import (
-    "github.com/janmbaco/go-infrastructure/logs"
-)
-
-func main() {
-    logger := logs.NewLogger()
-    logger.Trace("This is a trace message")
-    logger.Info("This is an informational message")
-    logger.Warning("This is a warning message")
-    logger.Error("This is an error message")
-    logger.Fatal("This is a fatal message")
-}
+// Type-safe resolution
+service := di.Resolve[*MyService](resolver)
 ```
 
-### Error Handler
-Provides utilities for handling errors in Go that can be thrown or caught. If the log level is set below fatal, all errors are logged.
-
-#### Definitions and Practical Examples
-
-#### `errorchecker.go`
-
-**Definition:**
-`errorchecker.go` provides a function to check if parameters are nil.
-
-**Example:**
+#### Lifetime Scopes
 
 ```go
-package main
+// Singleton: One instance per container
+register.AsSingleton(new(*Logger), NewLogger, nil)
 
-import (
-    "github.com/janmbaco/go-infrastructure/errors/errorchecker"
-)
+// Transient: New instance per request
+register.AsTransient(new(*Service), NewService, nil)
 
-func main() {
-    var param interface{} = nil
-    errorchecker.CheckNilParameter(map[string]interface{}{"param": param})
-}
+// Scoped: One instance per scope
+register.AsScoped(new(*RequestService), NewRequestService, nil)
 ```
 
-#### `errorcatcher.go`
+---
 
-**Definition:**
-`errorcatcher.go` provides an interface and implementation for catching and handling errors.
+### Logging
 
-**Example:**
+Structured logging with file rotation and configurable levels.
+
+#### Configuration
 
 ```go
-package main
+import "github.com/janmbaco/go-infrastructure/logs"
 
-import (
-    "errors"
-    "fmt"
-    "github.com/janmbaco/go-infrastructure/errors"
-    "github.com/janmbaco/go-infrastructure/logs"
-)
+logger := logs.NewLogger()
 
-func main() {
-    logger := logs.NewLogger()
-    errorCatcher := errors.NewErrorCatcher(logger)
+// Set log levels
+logger.SetConsoleLevel(logs.Info)    // Console: Info and above
+logger.SetFileLogLevel(logs.Trace)   // File: Everything
 
-    // Example of TryCatchError
-    errorCatcher.TryCatchError(func() {
-        panic("an unexpected error")
-    }, func(err error) {
-        fmt.Println("Caught an error:", err)
-    })
-
-    // Example of CatchError
-    err := errors.New("an example error")
-    errorCatcher.CatchError(err, func(err error) {
-        fmt.Println("Caught an error:", err)
-    })
-}
+// Set log directory
+logger.SetDir("./logs")
 ```
 
-#### `errormanager.go`
+#### Log Levels
 
-**Definition:**
-`errormanager.go` provides an interface and implementation to manage errors and their associated callbacks.
+| Level | Value | Method | Description |
+|-------|-------|--------|-------------|
+| Off | 0 | - | No logging |
+| Fatal | 1 | `Fatal(msg)` | Critical errors (exits program) |
+| Error | 2 | `Error(msg)` | Errors |
+| Warning | 3 | `Warning(msg)` | Warnings |
+| Info | 4 | `Info(msg)` | Informational messages |
+| Trace | 5 | `Trace(msg)` | Detailed debugging |
 
-**Example:**
+#### Usage
 
 ```go
-package main
-
-import (
-    "errors"
-    "fmt"
-    "github.com/janmbaco/go-infrastructure/errors"
-)
-
-func main() {
-    errorManager := errors.NewErrorManager()
-
-    // Register a callback for a specific type of error
-    errorManager.On(&MyError{}, func(err error) {
-        fmt.Println("Handling MyError:", err)
-    })
-
-    // Trigger an error and execute the registered callback
-    err := &MyError{Message: "An error occurred"}
-    if callback := errorManager.GetCallback(err); callback != nil {
-        callback(err)
-    }
-}
-
-type MyError struct {
-    Message string
-}
-
-func (e *MyError) Error() string {
-    return e.Message
-}
+logger.Trace("Entering function")
+logger.Info("User logged in: " + username)
+logger.Warning("Cache miss for key: " + key)
+logger.Error("Failed to connect: " + err.Error())
+logger.Fatal("Database unavailable") // Exits program
 ```
 
-#### `errorthrower.go`
+Logs are written to `{logs_dir}/YYYY-MM-DD.log` with daily rotation.
 
-**Definition:**
-`errorthrower.go` provides an interface and implementation to throw errors and execute the corresponding callbacks if registered.
+---
 
-**Example:**
+### Configuration
+
+File-based configuration with automatic reload on changes.
+
+#### Setup
 
 ```go
-package main
-
 import (
-    "errors"
-    "fmt"
-    "github.com/janmbaco/go-infrastructure/errors"
+    "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
+    configResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
 )
 
-func main() {
-    errorManager := errors.NewErrorManager()
-    errorThrower := errors.NewErrorThrower(errorManager)
-
-    // Register a callback for a specific type of error
-    errorManager.On(&MyError{}, func(err error) {
-        fmt.Println("Handling MyError:", err)
-    })
-
-    // Throw an error and execute the registered callback
-    err := &MyError{Message: "An error occurred"}
-    errorThrower.Throw(err)
+type AppConfig struct {
+    Port     int    `json:"port"`
+    Database string `json:"database"`
 }
 
-type MyError struct {
-    Message string
-}
+// Build container with configuration module
+container := di.NewBuilder().
+    AddModule(logsIoc.NewLogsModule()).
+    AddModule(errorsIoc.NewErrorsModule()).
+    AddModule(eventsIoc.NewEventsModule()).
+    AddModule(diskIoc.NewDiskModule()).
+    AddModule(ioc.NewConfigurationModule()).
+    MustBuild()
 
-func (e *MyError) Error() string {
-    return e.Message
-}
-```
-
-#### `errordefer.go`
-
-**Definition:**
-`errordefer.go` provides an interface and implementation to handle errors that may occur in deferred functions.
-
-**Example:**
-
-```go
-package main
-
-import (
-    "errors"
-    "fmt"
-    "github.com/janmbaco/go-infrastructure/errors"
+// Get configuration handler
+configHandler := configResolver.GetFileConfigHandler(
+    resolver,
+    "config.json",
+    &AppConfig{Port: 8080}, // Defaults
 )
 
-func main() {
-    errorThrower := errors.NewErrorThrower(nil)
-    errorDefer := errors.NewErrorDefer(errorThrower)
-
-    defer errorDefer.TryThrowError(nil)
-
-    // Simulate an error that causes a panic
-    panic(errors.New("an unexpected error"))
-}
+// Get current configuration
+config := configHandler.GetConfig().(*AppConfig)
+fmt.Println("Port:", config.Port)
 ```
 
-#### Combined Practical Example
-
-**Definition:**
-This example demonstrates the usage of `errormanager.go`, `errorthrower.go`, and `errordefer.go` together.
-
-**Example:**
+#### Configuration Events
 
 ```go
-package main
-
 import (
-    "errors"
-    "fmt"
-    "github.com/janmbaco/go-infrastructure/errors"
-)
-
-type MyError struct {
-    Message string
-}
-
-func (e *MyError) Error() string {
-    return e.Message
-}
-
-func main() {
-    errorManager := errors.NewErrorManager()
-    errorThrower := errors.NewErrorThrower(errorManager)
-    errorDefer := errors.NewErrorDefer(errorThrower)
-
-    errorManager.On(&MyError{}, func(err error) {
-        fmt.Println("Handling MyError:", err)
-    })
-
-    defer errorDefer.TryThrowError(nil)
-
-    // Trigger an error and execute the registered callback
-    panic(&MyError{Message: "An example error"})
-}
-```
-
-### Event
-Provides services for subscribing to and publishing events.
-
-#### `eventsmanager/eventobject.go`
-
-**Definition:**
-`eventobject.go` defines the interface for an event object responsible for making an event.
-
-#### Functions:
-- `GetEventArgs() interface{}`: Returns the event arguments.
-- `HasEventArgs() bool`: Checks if the event has arguments.
-- `StopPropagation() bool`: Checks if the event propagation should be stopped.
-- `IsParallelPropagation() bool`: Checks if the event propagation should be parallel.
-- `GetTypeOfFunc() reflect.Type`: Gets the type of the function associated with the event.
-
-**Example:**
-
-```go
-package main
-
-import (
-    "reflect"
     "github.com/janmbaco/go-infrastructure/eventsmanager"
+    "github.com/janmbaco/go-infrastructure/configuration/events"
 )
 
-type MyEvent struct {
-    args interface{}
-}
+// Subscribe to config changes
+modifiedSubs := eventsmanager.NewSubscriptions[events.ModifiedEvent]()
+modifiedSubs.Add(func(evt events.ModifiedEvent) {
+    newConfig := configHandler.GetConfig().(*AppConfig)
+    fmt.Println("Config updated. New port:", newConfig.Port)
+})
 
-func (e *MyEvent) GetEventArgs() interface{} {
-    return e.args
-}
+modifiedPub := eventsmanager.NewPublisher(modifiedSubs, logger)
+eventsmanager.Register(eventMgr, modifiedPub)
 
-func (e *MyEvent) HasEventArgs() bool {
-    return e.args != nil
-}
+// Subscribe to config restoration
+restoredSubs := eventsmanager.NewSubscriptions[events.RestoredEvent]()
+restoredSubs.Add(func(evt events.RestoredEvent) {
+    fmt.Println("Config restored to previous version")
+})
 
-func (e *MyEvent) StopPropagation() bool {
-    return false
-}
-
-func (e *MyEvent) IsParallelPropagation() bool {
-    return true
-}
-
-func (e *MyEvent) GetTypeOfFunc() reflect.Type {
-    return reflect.TypeOf(func(interface{}) {})
-}
+restoredPub := eventsmanager.NewPublisher(restoredSubs, logger)
+eventsmanager.Register(eventMgr, restoredPub)
 ```
 
-#### `eventsmanager/publisher.go`
+---
 
-**Definition:**
-`publisher.go` defines the interface for a publisher responsible for publishing events.
+### Error Handling
 
-#### Functions:
-- `Publish(event EventObject)`: Publishes an event.
+Centralized error catching without panic-based antipatterns.
 
-**Example:**
+#### Error Catcher
 
 ```go
-package main
-
 import (
-    "reflect"
     "github.com/janmbaco/go-infrastructure/errors"
-    "github.com/janmbaco/go-infrastructure/eventsmanager"
+    errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
 )
 
-func main() {
-    subscriptions := eventsmanager.NewSubscriptions(errors.NewErrorDefer(nil))
-    publisher := eventsmanager.NewPublisher(subscriptions, errors.NewErrorCatcher(nil))
+errorCatcher := errorsResolver.GetErrorCatcher(resolver)
 
-    event := &MyEvent{args: "Event Data"}
-    publisher.Publish(event)
-}
+// Try-Catch pattern
+errorCatcher.TryCatchError(
+    func() error {
+        // Risky operation
+        return someOperation()
+    },
+    func(err error) {
+        // Handle error (automatically logged)
+        fmt.Println("Caught error:", err)
+    },
+)
 ```
 
-#### `eventsmanager/subscriptions.go`
-
-**Definition:**
-`subscriptions.go` defines the interface for managing subscriptions to events.
-
-#### Functions:
-- `Add(event EventObject, subscribeFunc interface{})`: Adds a subscription to an event.
-- `Remove(event EventObject, subscribeFunc interface{})`: Removes a subscription from an event.
-- `GetAlls(event EventObject) []reflect.Value`: Gets all subscriptions for an event.
-
-**Example:**
+#### Validation
 
 ```go
-package main
+import "github.com/janmbaco/go-infrastructure/errors"
 
-import (
-    "reflect"
-    "github.com/janmbaco/go-infrastructure/errors"
-    "github.com/janmbaco/go-infrastructure/eventsmanager"
-)
-
-func main() {
-    subscriptions := eventsmanager.NewSubscriptions(errors.NewErrorDefer(nil))
-
-    subscribeFunc := func(args interface{}) {
-        println(args.(string))
+func ProcessUser(user *User, db *Database) error {
+    // Validate parameters (returns error, no panic)
+    if err := errors.ValidateNotNil(map[string]interface{}{
+        "user": user,
+        "db":   db,
+    }); err != nil {
+        return err
     }
-
-    event := &MyEvent{args: "Event Data"}
-    subscriptions.Add(event, subscribeFunc)
-    subscriptions.Remove(event, subscribeFunc)
+    
+    // Process...
+    return nil
 }
 ```
 
-### Disk
-Provides tools for writing and deleting files on disk. It also provides a service that listens for changes to a disk file.
+---
 
-#### Example
+### Event Management
+
+Type-safe publisher/subscriber pattern with generics.
+
+#### Event Definition
 
 ```go
-package main
+import "github.com/janmbaco/go-infrastructure/eventsmanager"
 
-import (
-    "fmt"
-    "github.com/janmbaco/go-infrastructure/disk"
-)
-
-func main() {
-    filePath := "example.txt"
-
-    // Write to a file
-    disk.WriteFile(filePath, []byte("Hello, world!"))
-
-    // Read from a file
-    data, err := disk.ReadFile(filePath)
-    if err != nil {
-        fmt.Println("Error reading file:", err)
-    } else {
-        fmt.Println("File contents:", string(data))
-    }
-
-    // Delete a file
-    disk.DeleteFile(filePath)
+type UserCreatedEvent struct {
+    UserID string
+    Email  string
 }
+
+// Events are passed directly, no wrapper needed
 ```
 
-### Config
-Provides a configuration interface and an implementation for a file configuration.
-
-#### Example
+#### Publish & Subscribe
 
 ```go
-package main
-
 import (
-    "fmt"
-    "github.com/janmbaco/go-infrastructure/config"
+    "github.com/janmbaco/go-infrastructure/eventsmanager"
+    eventsResolver "github.com/janmbaco/go-infrastructure/eventsmanager/ioc/resolver"
 )
 
-type Config struct {
-    Address string `json:"address"`
-}
+eventMgr := eventsResolver.GetEventManager(resolver)
 
-func main() {
-    configHandler := config.NewFileConfigHandler("config.json", &Config{Address: ":8080"})
-    config := configHandler.GetConfig().(*Config)
-    fmt.Println("Server address:", config.Address)
-}
+// Create subscriptions with type safety
+subscriptions := eventsmanager.NewSubscriptions[UserCreatedEvent]()
+subscriptions.Add(func(event UserCreatedEvent) {
+    fmt.Printf("User created: %s (%s)\n", event.UserID, event.Email)
+})
+
+// Create publisher
+publisher := eventsmanager.NewPublisher(subscriptions, logger)
+eventsmanager.Register(eventMgr, publisher)
+
+// Publish event (type-safe)
+eventsmanager.Publish(eventMgr, UserCreatedEvent{
+    UserID: "123",
+    Email:  "user@example.com",
+})
 ```
+
+---
 
 ### Server
-Provides a service that starts an HTTP or gRPC server that automatically restarts when the configuration changes.
 
-#### Example
+HTTP/HTTPS server with graceful shutdown and configuration reload.
+
+#### HTTP Server
 
 ```go
-package main
-
 import (
     "net/http"
     "github.com/janmbaco/go-infrastructure/server"
+    serverResolver "github.com/janmbaco/go-infrastructure/server/ioc/resolver"
 )
 
-func main() {
-    serverHandler := server.NewHTTPServer(":8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Write([]byte("Hello, world!"))
-    }))
-    serverHandler.Start()
+// Create listener builder
+listenerBuilder := serverResolver.GetListenerBuilder(resolver, configHandler)
+listenerBuilder.SetBootstrapper(func(cfg interface{}, serverSetter *server.ServerSetter) error {
+    serverSetter.Name = "MyServer"
+    serverSetter.Addr = ":8080"
+    serverSetter.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Write([]byte("Hello, World!"))
+    })
+    return nil
+})
+
+listener, err := listenerBuilder.GetListener()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Start server (blocks until stopped)
+finish := listener.Start()
+if err := <-finish; err != nil {
+    log.Fatal(err)
 }
 ```
 
-### Crypto
-Provides a service to encrypt and decrypt bytes.
-
-#### `crypto/cipher.go`
-
-**Definition:**
-`cipher.go` defines the interface for a cipher responsible for encrypting and decrypting values by a key.
-
-#### Functions:
-- `Encrypt(value []byte) []byte`: Encrypts the value.
-- `Decrypt(value []byte) []byte`: Decrypts the value.
-
-**Example:**
+#### Single Page App Serving
 
 ```go
-package main
+import "github.com/janmbaco/go-infrastructure/server"
 
-import (
-    "fmt"
-    "github.com/janmbaco/go-infrastructure/crypto"
-    "github.com/janmbaco/go-infrastructure/errors"
-)
-
-func main() {
-    key := []byte("example key 1234")
-    errorCatcher := errors.NewErrorCatcher(nil)
-    errorDefer := errors.NewErrorDefer(nil)
-    cipherService := crypto.NewCipher(key, errorCatcher, errorDefer)
-
-    value := []byte("Hello, world!")
-    encryptedValue := cipherService.Encrypt(value)
-    decryptedValue := cipherService.Decrypt(encryptedValue)
-
-    fmt.Println("Encrypted value:", encryptedValue)
-    fmt.Println("Decrypted value:", string(decryptedValue))
-}
+spaHandler := server.NewSinglePageApp("./dist", "index.html")
+http.Handle("/", spaHandler)
 ```
+
+---
 
 ### Persistence
-Provides an interface and implementation for data access using GORM.
 
-#### Definitions and Functions
+GORM-based data access layer with multi-database support.
 
-##### `dataaccess.go`
-**Definition:**
-`dataaccess.go` defines the `DataAccess` interface for CRUD operations.
+#### Database Setup
 
-**Functions:**
-- `Insert(datarow interface{})`: Inserts a record into the database.
-- `Select(datafilter interface{}, preloads ...string) interface{}`: Selects records from the database.
-- `Update(datafilter interface{}, datarow interface{})`: Updates records in the database.
-- `Delete(datafilter interface{}, associateds ...string)`: Deletes records from the database.
-
-**Practical Example:**
 ```go
-package main
-
 import (
-    "reflect"
-    "github.com/janmbaco/go-infrastructure/errors"
     "github.com/janmbaco/go-infrastructure/persistence/orm_base"
     "gorm.io/gorm"
-    "fmt"
 )
 
 type User struct {
-    ID   int
+    ID   uint   `gorm:"primaryKey"`
     Name string
 }
 
-func main() {
-    var db *gorm.DB // Initialize your GORM database here
-    errorDefer := errors.NewErrorDefer(nil)
-    dataAccess := orm_base.NewDataAccess(errorDefer, db, reflect.TypeOf(&User{}))
-
-    // Insert a user
-    user := &User{Name: "John Doe"}
-    dataAccess.Insert(user)
-
-    // Select users
-    users := dataAccess.Select(&User{Name: "John Doe"})
-    fmt.Println(users)
+dbInfo := &orm_base.DatabaseInfo{
+    Engine:       orm_base.Postgres,
+    Host:         "localhost",
+    Port:         "5432",
+    Name:         "myapp",
+    UserName:     "postgres",
+    UserPassword: "password",
 }
+
+db := orm_base.NewDB(
+    dialectorResolver,
+    dbInfo,
+    &gorm.Config{},
+    []interface{}{&User{}}, // Auto-migrate
+)
 ```
 
-##### `database_info.go`
-**Definition:**
-`database_info.go` defines the `DatabaseInfo` struct containing database connection information.
+#### Supported Databases
 
-**Practical Example:**
+| Engine | Connection String Format |
+|--------|--------------------------|
+| PostgreSQL | `host=X port=Y user=Z password=W dbname=D` |
+| MySQL | `user:password@tcp(host:port)/dbname` |
+| SQLite | `./test.db` |
+| SQL Server | `sqlserver://user:password@host:port?database=D` |
+
+---
+
+### Crypto
+
+AES encryption/decryption service.
+
 ```go
-package main
-
 import (
-    "github.com/janmbaco/go-infrastructure/persistence/orm_base"
-    "fmt"
+    "github.com/janmbaco/go-infrastructure/crypto"
+    cryptoResolver "github.com/janmbaco/go-infrastructure/crypto/ioc/resolver"
 )
 
-func main() {
-    dbInfo := &orm_base.DatabaseInfo{
-        Engine:       orm_base.Postgres,
-        Host:         "localhost",
-        Port:         "5432",
-        Name:         "exampledb",
-        UserName:     "user",
-        UserPassword: "password",
-    }
-    fmt.Println(dbInfo)
-}
+key := []byte("my-32-byte-encryption-key!!!") // Must be 16, 24, or 32 bytes
+cipher := cryptoResolver.GetCipher(resolver, key)
+
+// Encrypt
+plaintext := []byte("Secret message")
+encrypted := cipher.Encrypt(plaintext)
+
+// Decrypt
+decrypted := cipher.Decrypt(encrypted)
+fmt.Println(string(decrypted)) // "Secret message"
 ```
 
-##### `database_provider.go`
-**Definition:**
-`database_provider.go` provides the `NewDB` function to create a new database instance using a `DialectorResolver`.
+---
 
-**Practical Example:**
+### Disk Utilities
+
+File change notification and utilities.
+
 ```go
-package main
-
 import (
-    "github.com/janmbaco/go-infrastructure/persistence/orm_base"
-    "gorm.io/gorm"
-    "fmt"
+    "github.com/janmbaco/go-infrastructure/disk"
+    diskResolver "github.com/janmbaco/go-infrastructure/disk/ioc/resolver"
 )
 
-func main() {
-    var dialectorResolver orm_base.DialectorResolver // Initialize your dialector resolver here
-    var config *gorm.Config // GORM configuration
-    var tables []interface{} // Tables to migrate
-
-    db := orm_base.NewDB(dialectorResolver, &orm_base.DatabaseInfo{
-        Engine:       orm_base.Postgres,
-        Host:         "localhost",
-        Port:         "5432",
-        Name:         "exampledb",
-        UserName:     "user",
-        UserPassword: "password",
-    }, config, tables)
-
-    fmt.Println(db)
-}
+fileNotifier := diskResolver.GetFileChangedNotifier(resolver, "config.json")
+fileNotifier.Subscribe(func() {
+    fmt.Println("File changed!")
+})
 ```
 
-##### `dialector_getter.go`
-**Definition:**
-`dialector_getter.go` defines the `DialectorGetter` interface to obtain a `gorm.Dialector` based on the database information.
+---
 
-##### `dialector_resolver.go`
-**Definition:**
-`dialector_resolver.go` provides the implementation of `DialectorResolver` to resolve the `gorm.Dialector` using a `dependencyinjection.Resolver`.
+## Architecture
 
-**Practical Example:**
+### Module-Based Design
+
+```
+┌─────────────────────────────────────────────────┐
+│            Application Layer                    │
+│  (Your application using go-infrastructure)     │
+└───────────────────┬─────────────────────────────┘
+                    │
+┌───────────────────▼─────────────────────────────┐
+│         Dependency Injection Container          │
+│  (Builder → Modules → Register → Resolver)      │
+└───────────────────┬─────────────────────────────┘
+                    │
+        ┌───────────┼───────────┬─────────┬─────────────┐
+        │           │           │         │             │
+┌───────▼────┐ ┌───▼────┐ ┌───▼────┐ ┌─▼──────┐ ┌────▼─────┐
+│   Logs     │ │ Errors │ │ Events │ │ Config │ │  Server  │
+│   Module   │ │ Module │ │ Module │ │ Module │ │  Module  │
+└────────────┘ └────────┘ └────────┘ └────────┘ └──────────┘
+```
+
+### Key Principles
+
+**Separation of Concerns** - Each module handles a specific infrastructure concern  
+**Dependency Injection** - Services resolved via DI container  
+**Event-Driven** - Configuration changes and errors trigger events  
+**Type Safety** - Generic functions for compile-time type checking  
+**Error Handling** - Error-based (not panic-based) for better control
+
+---
+
+## Testing
+
+### Unit Testing with DI
+
 ```go
-package main
+package mypackage_test
 
 import (
-    "github.com/janmbaco/go-infrastructure/dependencyinjection"
-    "github.com/janmbaco/go-infrastructure/persistence/orm_base"
-    "fmt"
+    "testing"
+    di "github.com/janmbaco/go-infrastructure/dependencyinjection"
 )
 
-func main() {
-    var resolver dependencyinjection.Resolver // Initialize your resolver here
-    dialectorResolver := orm_base.NewDialectorResolver(resolver)
-
-    dbInfo := &orm_base.DatabaseInfo{
-        Engine:       orm_base.Postgres,
-        Host:         "localhost",
-        Port:         "5432",
-        Name:         "exampledb",
-        UserName:     "user",
-        UserPassword: "password",
-    }
-
-    dialector := dialectorResolver.Resolve(dbInfo)
-    fmt.Println(dialector)
+func TestMyService(t *testing.T) {
+    container := di.NewBuilder().
+        Register(func(r di.Register) {
+            // Register test dependencies
+            r.AsSingleton(new(*MockLogger), func() *MockLogger {
+                return &MockLogger{}
+            }, nil)
+        }).
+        MustBuild()
+    
+    service := container.Resolver().Type(new(*MyService), nil).(*MyService)
+    
+    // Test service...
 }
 ```
+
+### Running Tests
+
+```bash
+# Run all tests
+go test ./...
+
+# Run with coverage
+go test ./... -cover
+
+# Run specific package
+go test ./dependencyinjection
+```
+
+---
+
+## Requirements
+
+- **Go**: 1.24+
+- **OS**: Linux, macOS, Windows
+- **Dependencies**: See `go.mod` for full list
+
+### Key Dependencies
+
+- `github.com/fsnotify/fsnotify` - File watching
+- `gorm.io/gorm` - ORM framework
+- `gorm.io/driver/*` - Database drivers
+
+---
+
+## Troubleshooting
+
+### Issue: Module Import Error
+
+**Error:**
+```
+cannot find package "github.com/janmbaco/go-infrastructure/..."
+```
+
+**Solution:**
+```bash
+go get github.com/janmbaco/go-infrastructure
+go mod tidy
+```
+
+---
+
+### Issue: Event Subscribers Not Called
+
+**Symptom:** Published events don't trigger subscribers
+
+**Solution:** Ensure you're using the same `EventManager` instance:
+```go
+// Wrong - different publisher instances
+subs1 := eventsmanager.NewSubscriptions[MyEvent]()
+pub1 := eventsmanager.NewPublisher(subs1, logger)
+
+subs2 := eventsmanager.NewSubscriptions[MyEvent]()
+pub2 := eventsmanager.NewPublisher(subs2, logger) // Different instance
+
+// Correct - resolve from DI
+eventMgr := eventsResolver.GetEventManager(resolver)
+eventsmanager.Register(eventMgr, publisher)
+eventsmanager.Publish(eventMgr, event)
+```
+
+---
+
+### Issue: Config Not Reloading
+
+**Symptom:** Changes to `config.json` don't take effect
+
+**Checklist:**
+1. File watcher is running (check logs for "watching file")
+2. Event subscribers are registered before file changes
+3. Config file is being edited, not replaced (use edit/save, not mv/cp)
+
+---
+
+### Issue: ValidateNotNil Returns Error
+
+**Error:**
+```
+parameters cannot be nil: user
+```
+
+**Solution:** Check that all parameters are non-nil before calling the function:
+```go
+if user == nil {
+    return fmt.Errorf("user cannot be nil")
+}
+```
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps to contribute:
+Contributions are welcome! Please:
 
-1. Fork the repository.
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the branch (`git push origin feature/AmazingFeature`).
-5. Open a pull request.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Follow Go conventions: Use `gofmt`, `golangci-lint`
+4. Write tests: Maintain coverage
+5. Commit with clear messages: `git commit -m 'Add feature: XYZ'`
+6. Open a Pull Request: Include description and tests
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone https://github.com/janmbaco/go-infrastructure.git
+cd go-infrastructure
+
+# Install dependencies
+go mod download
+
+# Run tests
+go test ./...
+
+# Run linter (if installed)
+golangci-lint run
+
+# Check coverage
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out
+```
+
+---
+
+## Additional Resources
+
+- [UPGRADE-2.0.md](./UPGRADE-2.0.md) - Migration guide from v1.x
+- [CHANGELOG.md](./CHANGELOG.md) - Version history and release notes
+- [GitHub Issues](https://github.com/janmbaco/go-infrastructure/issues) - Report bugs or request features
+
+---
 
 ## License
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+

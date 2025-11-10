@@ -6,20 +6,26 @@ import (
 
 // RestoredEventHandler handles the subscriptions to the event
 type RestoredEventHandler struct {
-	subscriptions eventsmanager.Subscriptions
+	subscriptions eventsmanager.Subscriptions[RestoredEvent]
 }
 
 // NewRestoredEventHandler returns a  RestoredEventHandler
-func NewRestoredEventHandler(subscriptions eventsmanager.Subscriptions) *RestoredEventHandler {
+func NewRestoredEventHandler(subscriptions eventsmanager.Subscriptions[RestoredEvent]) *RestoredEventHandler {
 	return &RestoredEventHandler{subscriptions: subscriptions}
 }
 
 // RestoredUnsubscribe sets new subscription to the event
 func (r *RestoredEventHandler) RestoredUnsubscribe(subscription *func()) {
-	r.subscriptions.Remove(&RestoredEvent{}, subscription)
+	if subscription != nil {
+		fn := func(RestoredEvent) { (*subscription)() }
+		_ = r.subscriptions.Remove(fn) //nolint:errcheck // event subscription errors are not actionable
+	}
 }
 
 // RestoredSubscribe removes a subscriptions for the event
 func (r *RestoredEventHandler) RestoredSubscribe(subscription *func()) {
-	r.subscriptions.Add(&RestoredEvent{}, subscription)
+	if subscription != nil {
+		fn := func(RestoredEvent) { (*subscription)() }
+		_ = r.subscriptions.Add(fn) //nolint:errcheck // event subscription errors are not actionable
+	}
 }

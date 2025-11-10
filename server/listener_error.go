@@ -34,4 +34,3 @@ const (
 	UnexpectedError ListenerErrorType = iota
 	AddressNotConfigured
 )
-
