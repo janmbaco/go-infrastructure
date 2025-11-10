@@ -1,5 +1,4 @@
 //go:build linux || netbsd || openbsd || solaris
-// +build linux netbsd openbsd solaris
 
 package fdlimit
 
