@@ -1,9 +1,7 @@
-version: 2
+version: "2"
 
 run:
   timeout: 5m
-  tests: true
-  modules-download-mode: readonly
 
 linters:
   enable:
@@ -37,19 +35,12 @@ linters-settings:
   revive:
     rules:
       - name: var-naming
-        disabled: false
       - name: exported
-        disabled: false
       - name: error-return
-        disabled: false
       - name: error-naming
-        disabled: false
       - name: if-return
-        disabled: false
       - name: var-declaration
-        disabled: false
       - name: range
-        disabled: false
   
   gosec:
     excludes:
@@ -63,7 +54,6 @@ linters-settings:
       - performance
     disabled-checks:
       - unnamedResult
-      - hugeParam
 
 issues:
   exclude-rules:
@@ -76,6 +66,3 @@ issues:
     - path: ioc/
       linters:
         - unused
-  
-  max-issues-per-linter: 0
-  max-same-issues: 0
