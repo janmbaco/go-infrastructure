@@ -1,4 +1,5 @@
 package ioc
+
 import (
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/configuration/fileconfig"
@@ -18,7 +19,7 @@ func (m *ConfigurationModule) RegisterServices(register dependencyinjection.Regi
 	dependencyinjection.RegisterTypeWithParams[configuration.ConfigHandler](
 		register,
 		fileconfig.NewFileConfigHandler,
-		map[uint]string{0: "filePath", 1: "defaults", 4: "fileChangedNotifier"},
+		map[int]string{0: "filePath", 1: "defaults", 4: "fileChangedNotifier"},
 	)
 
 	return nil

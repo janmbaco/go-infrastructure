@@ -13,11 +13,11 @@ type (
 	}
 
 	fileChangedNotifier struct {
-		file           string
 		subscriptions  eventsmanager.Subscriptions[FileChangedEvent]
 		eventPublisher eventsmanager.Publisher[FileChangedEvent]
-		isWatchingFile bool
 		watcher        *fsnotify.Watcher
+		file           string
+		isWatchingFile bool
 	}
 )
 
@@ -35,7 +35,9 @@ func NewFileChangedNotifier(filePath string, eventManager *eventsmanager.EventMa
 // Subscribe subscribes a functio to observe changes of a file
 func (f *fileChangedNotifier) Subscribe(subscribeFunc func()) error {
 	fn := func(FileChangedEvent) { subscribeFunc() }
-	f.subscriptions.Add(fn)
+	if err := f.subscriptions.Add(fn); err != nil {
+		return err
+	}
 	if !f.isWatchingFile {
 		if err := f.watcher.Add(f.file); err != nil {
 			return err

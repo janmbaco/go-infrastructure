@@ -26,6 +26,8 @@ func Register[T EventObject[T]](em *EventManager, publisher Publisher[T]) {
 func Publish[T EventObject[T]](em *EventManager, event T) {
 	typ := reflect.TypeOf(event)
 	if publisher, exists := em.publishers[typ]; exists {
-		publisher.(Publisher[T]).Publish(event)
+		if pub, ok := publisher.(Publisher[T]); ok {
+			pub.Publish(event)
+		}
 	}
 }

@@ -1,85 +1,65 @@
 package dependencyinjection
+
 import (
 	"context"
-	"reflect"
 )
 
 // RegisterType registers a type with type safety using generics
 func RegisterType[T any](r Register, factory func() T) {
 	var instance T
-	iface := reflect.TypeOf(&instance).Elem()
-	if iface.Kind() == reflect.Ptr {
-		iface = iface.Elem()
-	}
 	r.AsType(&instance, factory, nil)
 }
 
 // RegisterScoped registers a scoped dependency with type safety using generics
 func RegisterScoped[T any](r Register, factory func() T) {
 	var instance T
-	iface := reflect.TypeOf(&instance).Elem()
-	if iface.Kind() == reflect.Ptr {
-		iface = iface.Elem()
-	}
 	r.AsScope(&instance, factory, nil)
 }
 
 // RegisterSingleton registers a singleton with type safety using generics
 func RegisterSingleton[T any](r Register, factory func() T) {
 	var instance T
-	iface := reflect.TypeOf(&instance).Elem()
-	if iface.Kind() == reflect.Ptr {
-		iface = iface.Elem()
-	}
 	r.AsSingleton(&instance, factory, nil)
 }
 
 // RegisterTenant registers a tenant dependency with type safety using generics
 func RegisterTenant[T any](r Register, tenant string, factory func() T) {
 	var instance T
-	iface := reflect.TypeOf(&instance).Elem()
-	if iface.Kind() == reflect.Ptr {
-		iface = iface.Elem()
-	}
 	r.AsTenant(tenant, &instance, factory, nil)
 }
 
 // RegisterSingletonTenant registers a singleton tenant with type safety using generics
 func RegisterSingletonTenant[T any](r Register, tenant string, factory func() T) {
 	var instance T
-	iface := reflect.TypeOf(&instance).Elem()
-	if iface.Kind() == reflect.Ptr {
-		iface = iface.Elem()
-	}
 	r.AsSingletonTenant(tenant, &instance, factory, nil)
 }
 
 // RegisterTypeWithParams registers a type with parameters using generics
-func RegisterTypeWithParams[T any](r Register, factory interface{}, argNames map[uint]string) {
+func RegisterTypeWithParams[T any](r Register, factory interface{}, argNames map[int]string) {
 	var instance T
 	r.AsType(&instance, factory, argNames)
 }
 
 // RegisterScopedWithParams registers a scoped dependency with parameters using generics
-func RegisterScopedWithParams[T any](r Register, factory interface{}, argNames map[uint]string) {
+func RegisterScopedWithParams[T any](r Register, factory interface{}, argNames map[int]string) {
 	var instance T
 	r.AsScope(&instance, factory, argNames)
 }
 
 // RegisterSingletonWithParams registers a singleton with parameters using generics
-func RegisterSingletonWithParams[T any](r Register, factory interface{}, argNames map[uint]string) {
+func RegisterSingletonWithParams[T any](r Register, factory interface{}, argNames map[int]string) {
 	var instance T
 	r.AsSingleton(&instance, factory, argNames)
 }
 
 // RegisterTenantWithParams registers a tenant dependency with parameters using generics
-func RegisterTenantWithParams[T any](r Register, tenant string, factory interface{}, argNames map[uint]string) {
+func RegisterTenantWithParams[T any](r Register, tenant string, factory interface{}, argNames map[int]string) {
 	var instance T
 	r.AsTenant(tenant, &instance, factory, argNames)
 }
 
 // RegisterSingletonTenantWithParams registers a singleton tenant with parameters using generics
-func RegisterSingletonTenantWithParams[T any](r Register, tenant string, factory interface{}, argNames map[uint]string) {
+func RegisterSingletonTenantWithParams[T any](r Register, tenant string, factory interface{}, argNames map[int]string) {
 	var instance T
 	r.AsSingletonTenant(tenant, &instance, factory, argNames)
 }

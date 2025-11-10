@@ -1,4 +1,5 @@
 package ioc
+
 import (
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
 	"github.com/janmbaco/go-infrastructure/disk"
@@ -17,7 +18,7 @@ func (m *DiskModule) RegisterServices(register dependencyinjection.Register) err
 	dependencyinjection.RegisterTypeWithParams[disk.FileChangedNotifier](
 		register,
 		disk.NewFileChangedNotifier,
-		map[uint]string{0: "filePath"},
+		map[int]string{0: "filePath"},
 	)
 
 	return nil

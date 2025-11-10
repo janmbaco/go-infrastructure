@@ -1,37 +1,37 @@
-package orm_base
+package orm_base //nolint:revive // established package name, changing would break API
 
 import "fmt"
 
 type DbEngine uint8
 
 const (
-	_SqlServerDB string   = "SqlServerDB"
+	_SQLServerDB string   = "SqlServerDB"
 	_PostgresDB  string   = "PostgresDB"
-	_MySqlDB     string   = "MySqlDB"
+	_MySQLDB     string   = "MySqlDB"
 	_SqliteDB    string   = "SqliteDB"
-	SqlServer    DbEngine = iota
+	SQLServer    DbEngine = iota
 	Postgres
-	MySql
+	MySQL
 	Sqlite
 )
 
 type DatabaseInfo struct {
-	Engine       DbEngine `json:"engine"`
 	Host         string   `json:"host"`
 	Port         string   `json:"port"`
 	Name         string   `json:"name"`
 	UserName     string   `json:"user_name"`
 	UserPassword string   `json:"user_password"`
+	Engine       DbEngine `json:"engine"`
 }
 
 func (engine DbEngine) ToString() (string, error) {
 	switch engine {
-	case SqlServer:
-		return _SqlServerDB, nil
+	case SQLServer:
+		return _SQLServerDB, nil
 	case Postgres:
 		return _PostgresDB, nil
-	case MySql:
-		return _MySqlDB, nil
+	case MySQL:
+		return _MySQLDB, nil
 	case Sqlite:
 		return _SqliteDB, nil
 	}

@@ -1,4 +1,5 @@
 package resolver
+
 import (
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
@@ -6,8 +7,12 @@ import (
 )
 
 func GetListenerBuilder(resolver dependencyinjection.Resolver, configHandler configuration.ConfigHandler) server.ListenerBuilder {
-	return resolver.Type(new(server.ListenerBuilder),
+	result, ok := resolver.Type(new(server.ListenerBuilder),
 		map[string]interface{}{
 			"configHandler": configHandler,
 		}).(server.ListenerBuilder)
+	if !ok {
+		panic("failed to resolve ListenerBuilder")
+	}
+	return result
 }

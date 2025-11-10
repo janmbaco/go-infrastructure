@@ -1,4 +1,5 @@
 package ioc
+
 import (
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
 	"github.com/janmbaco/go-infrastructure/logs"
@@ -14,9 +15,7 @@ func NewLogsModule() *LogsModule {
 
 // RegisterServices registers all logging services
 func (m *LogsModule) RegisterServices(register dependencyinjection.Register) error {
-	dependencyinjection.RegisterSingleton[logs.Logger](register, func() logs.Logger {
-		return logs.NewLogger()
-	})
+	dependencyinjection.RegisterSingleton[logs.Logger](register, logs.NewLogger)
 
 	// Bind ErrorLogger interface to Logger implementation
 	register.Bind(new(logs.ErrorLogger), new(logs.Logger))

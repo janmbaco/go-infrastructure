@@ -1,4 +1,5 @@
 package eventsmanager
+
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
 )

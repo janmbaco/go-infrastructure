@@ -1,4 +1,5 @@
 package server
+
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
 )
@@ -33,4 +34,3 @@ const (
 	UnexpectedError ListenerErrorType = iota
 	AddressNotConfigured
 )
-

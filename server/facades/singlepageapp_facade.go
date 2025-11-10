@@ -1,6 +1,7 @@
 package facades
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
@@ -15,7 +16,7 @@ import (
 	serverResolver "github.com/janmbaco/go-infrastructure/server/ioc/resolver"
 )
 
-func SinglePageAppStart(port string, staticPath string, index string) {
+func SinglePageAppStart(port, staticPath, index string) {
 
 	// all servers need a configuration.
 	// The configuration is monitored to
@@ -55,8 +56,12 @@ func SinglePageAppStart(port string, staticPath string, index string) {
 		// every time the configuration is modified
 		// hence the data is retrieved from the configuration again.
 		SetBootstrapper(func(config interface{}, serverSetter *server.ServerSetter) error {
-			serverSetter.Handler = server.NewSinglePageApp(config.(*conf).StaticPath, config.(*conf).Index)
-			serverSetter.Addr = config.(*conf).Port
+			conf, ok := config.(*conf)
+			if !ok {
+				return fmt.Errorf("invalid config type")
+			}
+			serverSetter.Handler = server.NewSinglePageApp(conf.StaticPath, conf.Index)
+			serverSetter.Addr = conf.Port
 			return nil
 		}).
 		GetListener()

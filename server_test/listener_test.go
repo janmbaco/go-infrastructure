@@ -24,9 +24,9 @@ import (
 // / Implementa la responsabilidad de probar el comportamiento del Listener con recuperación de pánico.
 // / </summary>
 type ListenerTests struct {
-	configFilePath string
 	configHandler  configuration.ConfigHandler
 	Resolver       dependencyinjection.Resolver
+	configFilePath string
 }
 
 type testConfig struct {
@@ -40,7 +40,7 @@ const (
 	secondAddress  = ":18090"
 )
 
-func (lt *ListenerTests) setup(t *testing.T) {
+func (lt *ListenerTests) setup(t *testing.T) { //nolint:unparam // testing.T parameter kept for consistency with test method signatures
 	lt.configFilePath = testConfigFile
 
 	// Setup IoC container

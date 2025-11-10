@@ -1,4 +1,5 @@
 package dependencyinjection
+
 import "context"
 
 // Module represents a self-contained unit that can register its dependencies

@@ -1,4 +1,5 @@
 package errors
+
 import (
 	"fmt"
 	"reflect"

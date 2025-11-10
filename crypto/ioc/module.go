@@ -1,4 +1,5 @@
 package ioc
+
 import (
 	"github.com/janmbaco/go-infrastructure/crypto"
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
@@ -17,7 +18,7 @@ func (m *CryptoModule) RegisterServices(register dependencyinjection.Register) e
 	dependencyinjection.RegisterSingletonWithParams[crypto.Cipher](
 		register,
 		crypto.NewCipher,
-		map[uint]string{0: "key"},
+		map[int]string{0: "key"},
 	)
 
 	return nil

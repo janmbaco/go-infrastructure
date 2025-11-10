@@ -1,6 +1,6 @@
 package disk
+
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -36,7 +36,7 @@ func Copy(src, dst string) error {
 	}
 
 	if !sourceFileStat.Mode().IsRegular() {
-		return errors.New(fmt.Sprintf("%s is not a regular file", src))
+		return fmt.Errorf("%s is not a regular file", src)
 	}
 
 	source, err := os.Open(src)
@@ -50,7 +50,7 @@ func Copy(src, dst string) error {
 		return err
 	}
 	defer func() { _ = destination.Close() }()
-	
+
 	if _, err = io.Copy(destination, source); err != nil {
 		return err
 	}
@@ -59,8 +59,5 @@ func Copy(src, dst string) error {
 
 // DeleteFile deletes a file
 func DeleteFile(filePath string) error {
-	if err := os.Remove(filePath); err != nil {
-		return err
-	}
-	return nil
+	return os.Remove(filePath)
 }

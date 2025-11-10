@@ -6,5 +6,9 @@ import (
 )
 
 func GetErrorCatcher(resolver dependencyinjection.Resolver) errors.ErrorCatcher {
-	return resolver.Type(new(errors.ErrorCatcher), nil).(errors.ErrorCatcher)
+	result := resolver.Type(new(errors.ErrorCatcher), nil)
+	if errorCatcher, ok := result.(errors.ErrorCatcher); ok {
+		return errorCatcher
+	}
+	panic("failed to resolve ErrorCatcher")
 }

@@ -10,8 +10,8 @@ import (
 
 // mockLogger is a test logger implementation
 type mockLogger struct {
-	errorCalled bool
 	lastError   error
+	errorCalled bool
 }
 
 func (m *mockLogger) PrintError(level logs.LogLevel, err error)    {}

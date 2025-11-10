@@ -1,4 +1,5 @@
 package server
+
 import (
 	"net/http"
 	"os"
@@ -11,7 +12,7 @@ type singlePageApp struct {
 }
 
 // NewSinglePageApp return the handler for a Single Page App
-func NewSinglePageApp(staticPath string, indexPath string) http.Handler {
+func NewSinglePageApp(staticPath, indexPath string) http.Handler {
 	return &singlePageApp{staticPath: staticPath, indexPath: indexPath}
 }
 

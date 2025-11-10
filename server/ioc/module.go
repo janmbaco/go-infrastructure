@@ -1,4 +1,5 @@
 package ioc
+
 import (
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
 	"github.com/janmbaco/go-infrastructure/server"
@@ -17,7 +18,7 @@ func (m *ServerModule) RegisterServices(register dependencyinjection.Register) e
 	dependencyinjection.RegisterSingletonWithParams[server.ListenerBuilder](
 		register,
 		server.NewListenerBuilder,
-		map[uint]string{0: "configHandler"},
+		map[int]string{0: "configHandler"},
 	)
 
 	return nil

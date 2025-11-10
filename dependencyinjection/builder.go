@@ -1,18 +1,19 @@
 package dependencyinjection
+
 import "context"
 
 // Builder provides a fluent API for building a container with modules
 type Builder struct {
-	container Container
-	modules   []Module
+	container  Container
+	modules    []Module
 	modulesCtx []ModuleWithContext
 }
 
 // NewBuilder creates a new container builder
 func NewBuilder() *Builder {
 	return &Builder{
-		container: NewContainer(),
-		modules:   make([]Module, 0),
+		container:  NewContainer(),
+		modules:    make([]Module, 0),
 		modulesCtx: make([]ModuleWithContext, 0),
 	}
 }
@@ -25,9 +26,7 @@ func (b *Builder) AddModule(module Module) *Builder {
 
 // AddModules adds multiple modules to the builder
 func (b *Builder) AddModules(modules ...Module) *Builder {
-	for _, module := range modules {
-		b.modules = append(b.modules, module)
-	}
+	b.modules = append(b.modules, modules...)
 	return b
 }
 
@@ -57,19 +56,19 @@ func (b *Builder) Build() (Container, error) {
 // BuildCtx builds the container with context
 func (b *Builder) BuildCtx(ctx context.Context) (Container, error) {
 	register := b.container.Register()
-	
+
 	for _, module := range b.modules {
 		if err := module.RegisterServices(register); err != nil {
 			return nil, err
 		}
 	}
-	
+
 	for _, module := range b.modulesCtx {
 		if err := module.RegisterServicesCtx(ctx, register); err != nil {
 			return nil, err
 		}
 	}
-	
+
 	return b.container, nil
 }
 
@@ -95,12 +94,12 @@ func BuildWithContainer(container Container, modules ...Module) error {
 // BuildWithContainerCtx builds with context using an existing container
 func BuildWithContainerCtx(ctx context.Context, container Container, modules ...Module) error {
 	register := container.Register()
-	
+
 	for _, module := range modules {
 		if err := module.RegisterServices(register); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }

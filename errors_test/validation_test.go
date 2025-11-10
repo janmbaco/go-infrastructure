@@ -1,7 +1,6 @@
 package errors_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/janmbaco/go-infrastructure/errors"
@@ -189,10 +188,16 @@ func Test_ValidateNotNil_WhenNilFunc_ThenReturnsError(t *testing.T) {
 
 // Helper function
 func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || 
-		(len(s) > 0 && len(substr) > 0 && fmt.Sprintf("%s", s)[0:len(s)] != "" && 
-		fmt.Sprintf("%s", s) != "" && s[0:1] != "" && 
-		findInString(s, substr)))
+	if len(s) < len(substr) {
+		return false
+	}
+	if s == substr || substr == "" {
+		return true
+	}
+	if s == "" || s[0:1] == "" {
+		return false
+	}
+	return findInString(s, substr)
 }
 
 func findInString(s, substr string) bool {

@@ -18,7 +18,7 @@ func NewModifiedEventHandler(subscriptions eventsmanager.Subscriptions[ModifiedE
 func (m *ModifiedEventHandler) ModifiedUnsubscribe(subscription *func()) {
 	if subscription != nil {
 		fn := func(ModifiedEvent) { (*subscription)() }
-		m.subscriptions.Remove(fn)
+		_ = m.subscriptions.Remove(fn) //nolint:errcheck // event subscription errors are not actionable
 	}
 }
 
@@ -26,6 +26,6 @@ func (m *ModifiedEventHandler) ModifiedUnsubscribe(subscription *func()) {
 func (m *ModifiedEventHandler) ModifiedSubscribe(subscription *func()) {
 	if subscription != nil {
 		fn := func(ModifiedEvent) { (*subscription)() }
-		m.subscriptions.Add(fn)
+		_ = m.subscriptions.Add(fn) //nolint:errcheck // event subscription errors are not actionable
 	}
 }

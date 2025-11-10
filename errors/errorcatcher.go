@@ -1,6 +1,8 @@
 package errors
+
 import (
 	"fmt"
+
 	"github.com/janmbaco/go-infrastructure/logs"
 )
 

@@ -1,4 +1,5 @@
 package configuration
+
 import (
 	"time"
 )

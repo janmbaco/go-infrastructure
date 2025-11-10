@@ -1,9 +1,12 @@
 package dialectors
-import (	"github.com/janmbaco/go-infrastructure/persistence/orm_base"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+
+import (
 	"os"
 	"path/filepath"
+
+	"github.com/janmbaco/go-infrastructure/persistence/orm_base"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 type sqliteDialectorGetter struct {
@@ -14,7 +17,7 @@ func NewSqliteDialectorGetter() orm_base.DialectorGetter {
 }
 
 func (dialectorGetter *sqliteDialectorGetter) Get(info *orm_base.DatabaseInfo) (gorm.Dialector, error) {
-	if err := os.MkdirAll(filepath.Dir(info.Host), 0666); err != nil {
+	if err := os.MkdirAll(filepath.Dir(info.Host), 0o755); err != nil {
 		return nil, err
 	}
 	return sqlite.Open(info.Host), nil

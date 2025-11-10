@@ -18,7 +18,7 @@ func NewRestoredEventHandler(subscriptions eventsmanager.Subscriptions[RestoredE
 func (r *RestoredEventHandler) RestoredUnsubscribe(subscription *func()) {
 	if subscription != nil {
 		fn := func(RestoredEvent) { (*subscription)() }
-		r.subscriptions.Remove(fn)
+		_ = r.subscriptions.Remove(fn) //nolint:errcheck // event subscription errors are not actionable
 	}
 }
 
@@ -26,6 +26,6 @@ func (r *RestoredEventHandler) RestoredUnsubscribe(subscription *func()) {
 func (r *RestoredEventHandler) RestoredSubscribe(subscription *func()) {
 	if subscription != nil {
 		fn := func(RestoredEvent) { (*subscription)() }
-		r.subscriptions.Add(fn)
+		_ = r.subscriptions.Add(fn) //nolint:errcheck // event subscription errors are not actionable
 	}
 }

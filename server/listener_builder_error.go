@@ -1,4 +1,5 @@
 package server
+
 import (
 	"github.com/janmbaco/go-infrastructure/errors"
 )
@@ -35,4 +36,3 @@ const (
 	NilBootstraperError
 	NilGrpcDefinitionsError
 )
-

@@ -1,4 +1,5 @@
 package dependencyinjection
+
 import (
 	"context"
 	"reflect"
@@ -8,7 +9,7 @@ import (
 type Resolver interface {
 	Type(iface interface{}, params map[string]interface{}) interface{}
 	Tenant(tenantName string, iface interface{}, params map[string]interface{}) interface{}
-	
+
 	// Context-aware methods
 	TypeCtx(ctx context.Context, iface interface{}, params map[string]interface{}) interface{}
 	TenantCtx(ctx context.Context, tenantName string, iface interface{}, params map[string]interface{}) interface{}
@@ -24,14 +25,14 @@ func newResolver(dependencies Dependencies) Resolver {
 
 // Type gets a dependency by the interface and params
 func (r *resolver) Type(iface interface{}, params map[string]interface{}) interface{} {
-	return r.dependencies.Get(DependencyKey{Iface:reflect.Indirect(reflect.ValueOf(iface)).Type()}).Create(params, r.dependencies, make(map[DependencyObject]interface{}))
+	return r.dependencies.Get(DependencyKey{Iface: reflect.Indirect(reflect.ValueOf(iface)).Type()}).Create(params, r.dependencies, make(map[DependencyObject]interface{}))
 }
 
 // Tenant gets a dependency by the interface, the tenant key and paramas
 func (r *resolver) Tenant(tenant string, iface interface{}, params map[string]interface{}) interface{} {
 	return r.dependencies.Get(DependencyKey{
 		Tenant: tenant,
-		Iface: reflect.Indirect(reflect.ValueOf(iface)).Type(),
+		Iface:  reflect.Indirect(reflect.ValueOf(iface)).Type(),
 	}).Create(params, r.dependencies, make(map[DependencyObject]interface{}))
 }
 

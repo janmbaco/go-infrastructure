@@ -2,7 +2,6 @@ package fileconfig
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,19 +20,19 @@ import (
 const maxTries = 10
 
 type fileConfigHandler struct {
-	*events.ModifiedEventHandler
-	*events.RestoredEventHandler
-	filePath     string
+	errorCatcher errors.ErrorCatcher
 	oldconfig    interface{}
 	dataconfig   interface{}
 	newConfig    interface{}
-	isFreezed    bool
 	fromFile     interface{}
+	*events.RestoredEventHandler
+	*events.ModifiedEventHandler
 	eventManager *eventsmanager.EventManager
-	period       configuration.Period
-	errorCatcher errors.ErrorCatcher
 	stopRefresh  chan bool
+	filePath     string
+	period       configuration.Period
 	mutex        sync.RWMutex
+	isFreezed    bool
 }
 
 // NewFileConfigHandler returns a ConfigHandler
@@ -185,7 +184,7 @@ func (f *fileConfigHandler) readFile() error {
 	var err error
 	try := 1
 	for len(content) == 0 && try < maxTries {
-		content, err = ioutil.ReadFile(f.filePath)
+		content, err = os.ReadFile(f.filePath)
 		if err != nil {
 			return err
 		}
@@ -196,10 +195,7 @@ func (f *fileConfigHandler) readFile() error {
 		return err
 	}
 	f.fromFile = f.createConfig()
-	if err := copier.Copy(f.fromFile, ret); err != nil {
-		return err
-	}
-	return nil
+	return copier.Copy(f.fromFile, ret)
 }
 
 func (f *fileConfigHandler) writeFile() error {
@@ -209,12 +205,14 @@ func (f *fileConfigHandler) writeFile() error {
 	if err != nil {
 		return err
 	}
-	_ = os.Mkdir(filepath.Dir(f.filePath), 0666)
+	if err := os.MkdirAll(filepath.Dir(f.filePath), 0o755); err != nil {
+		return err
+	}
 	return disk.CreateFile(f.filePath, content)
 }
 
 func (f *fileConfigHandler) onModifiedConfigFile() {
-	f.errorCatcher.TryCatchError(
+	f.errorCatcher.TryCatchError( //nolint:errcheck // TryCatchError handles errors internally via callback
 		func() error {
 			f.mutex.Lock()
 			defer f.mutex.Unlock()
@@ -242,7 +240,7 @@ func (f *fileConfigHandler) onModifiedConfigFile() {
 			return nil
 		},
 		func(err error) {
-			_ = f.recoveryFile()
+			_ = f.recoveryFile() //nolint:errcheck // recovery errors are not actionable when already in error state
 		})
 }
 
@@ -263,7 +261,7 @@ func (f *fileConfigHandler) refreshLoop() {
 		select {
 		case <-time.After(time.Minute):
 			if f.period.IsFinished() {
-				_ = f.ForceRefresh()
+				_ = f.ForceRefresh() //nolint:errcheck // periodic refresh errors should not crash the system
 			}
 		case <-f.stopRefresh:
 			exit = true
@@ -277,7 +275,7 @@ func (f *fileConfigHandler) refreshLoop() {
 func (f *fileConfigHandler) pipeError(err error) error {
 	resultError := err
 
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*FileConfigHandlerError)(nil)).Elem()) {
+	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*HandlerError)(nil)).Elem()) {
 		resultError = newFileConfigHandlerError(UnexpectedError, err.Error(), err)
 	}
 

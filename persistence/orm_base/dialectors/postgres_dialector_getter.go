@@ -1,6 +1,8 @@
 package dialectors
+
 import (
 	"fmt"
+
 	"github.com/janmbaco/go-infrastructure/persistence/orm_base"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

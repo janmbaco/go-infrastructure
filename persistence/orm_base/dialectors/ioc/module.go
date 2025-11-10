@@ -1,4 +1,5 @@
 package ioc
+
 import (
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
 	"github.com/janmbaco/go-infrastructure/persistence/orm_base"
@@ -15,40 +16,32 @@ func NewDialectorsModule() *DialectorsModule {
 
 // RegisterServices registers all database dialectors
 func (m *DialectorsModule) RegisterServices(register dependencyinjection.Register) error {
-	mysqlKey, _ := orm_base.MySql.ToString()
+	mysqlKey, _ := orm_base.MySQL.ToString() //nolint:errcheck // ToString called with known constants that cannot fail
 	dependencyinjection.RegisterSingletonTenant[orm_base.DialectorGetter](
 		register,
 		mysqlKey,
-		func() orm_base.DialectorGetter {
-			return dialectors.NewMysqlDialectorGetter()
-		},
+		dialectors.NewMysqlDialectorGetter,
 	)
 
-	postgresKey, _ := orm_base.Postgres.ToString()
+	postgresKey, _ := orm_base.Postgres.ToString() //nolint:errcheck // ToString called with known constants that cannot fail
 	dependencyinjection.RegisterSingletonTenant[orm_base.DialectorGetter](
 		register,
 		postgresKey,
-		func() orm_base.DialectorGetter {
-			return dialectors.NewPostgresDialectorGetter()
-		},
+		dialectors.NewPostgresDialectorGetter,
 	)
 
-	sqliteKey, _ := orm_base.Sqlite.ToString()
+	sqliteKey, _ := orm_base.Sqlite.ToString() //nolint:errcheck // ToString called with known constants that cannot fail
 	dependencyinjection.RegisterSingletonTenant[orm_base.DialectorGetter](
 		register,
 		sqliteKey,
-		func() orm_base.DialectorGetter {
-			return dialectors.NewSqliteDialectorGetter()
-		},
+		dialectors.NewSqliteDialectorGetter,
 	)
 
-	sqlServerKey, _ := orm_base.SqlServer.ToString()
+	sqlServerKey, _ := orm_base.SQLServer.ToString() //nolint:errcheck // ToString called with known constants that cannot fail
 	dependencyinjection.RegisterSingletonTenant[orm_base.DialectorGetter](
 		register,
 		sqlServerKey,
-		func() orm_base.DialectorGetter {
-			return dialectors.NewSqlServerDialectorGetter()
-		},
+		dialectors.NewSqlServerDialectorGetter,
 	)
 
 	return nil

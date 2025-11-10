@@ -104,13 +104,19 @@ func (logger *logger) Println(level LogLevel, message string) {
 		}
 	}
 
-	if len(logger.logsDir) > 0 && logger.activeFileLogger[level] {
+	if logger.logsDir != "" && logger.activeFileLogger[level] {
 		year, month, day := time.Now().Date()
 		execFile := filepath.Base(os.Args[0])
 
 		logFile := logger.logsDir + "/" + execFile + "-" + strconv.Itoa(year) + strconv.Itoa(int(month)) + strconv.Itoa(day) + ".log"
-		_ = os.MkdirAll(filepath.Dir(logFile), 0666)
-		osFile, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err := os.MkdirAll(filepath.Dir(logFile), 0o755); err != nil {
+			log.Println("impossible to create log directory:", err)
+			return
+		}
+		osFile, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
+		if err != nil {
+			log.Println("impossible to log in file:", err)
+		}
 		if err != nil {
 			log.Println("impossible to log in file:", err)
 		}

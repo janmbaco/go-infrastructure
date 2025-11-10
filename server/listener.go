@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"time"
 
 	"github.com/janmbaco/go-infrastructure/configuration"
 	"github.com/janmbaco/go-infrastructure/errors"
@@ -22,17 +23,22 @@ type (
 
 	GrpcDefinitionsFunc func(grpcServer *grpc.Server)
 
-	ServerType uint8
+	ServerType uint8 //nolint:revive // established API name, stuttering is acceptable
 
 	State uint8
 
-	ServerSetter struct {
-		Name         string
-		Addr         string
+	ServerSetter struct { //nolint:revive // established API name, stuttering is acceptable
+		// Pointers and interfaces first for memory alignment
 		Handler      http.Handler
 		TLSConfig    *tls.Config
 		TLSNextProto map[string]func(*http.Server, *tls.Conn, http.Handler)
-		ServerType   ServerType
+
+		// Strings
+		Name string
+		Addr string
+
+		// Primitives
+		ServerType ServerType
 	}
 
 	BootstrapperFunc func(config interface{}, serverSetter *ServerSetter) error
@@ -47,26 +53,26 @@ type (
 
 	listener struct {
 		configHandler        configuration.ConfigHandler
+		logger               logs.Logger
+		errorCatcher         errors.ErrorCatcher
+		serverSetter         *ServerSetter
+		httpServer           *http.Server
+		grpcServer           *grpc.Server
 		bootstrapperFunc     BootstrapperFunc
 		grpcDefinitionsFunc  GrpcDefinitionsFunc
 		configValidatorFunc  ConfigValidatorFunc
 		configApplicatorFunc ConfigApplicatorFunc
-		serverSetter         *ServerSetter
-		httpServer           *http.Server
-		grpcServer           *grpc.Server
-		logger               logs.Logger
-		errorCatcher         errors.ErrorCatcher
 		start                chan bool
 		started              chan bool
 		stop                 chan bool
-		stopped              bool
 		finish               chan ListenerError
 		isBusy               chan bool
+		stopped              bool
 	}
 )
 
 const (
-	HttpServer ServerType = iota
+	HTTPServer ServerType = iota
 	GRpcSever
 )
 
@@ -105,7 +111,7 @@ func (l *listener) Start() chan ListenerError {
 func (l *listener) Stop() {
 	l.isBusy <- true
 	l.logger.Infof("%v - Server Stop", l.serverSetter.Name)
-	_ = l.stopServer()
+	_ = l.stopServer() //nolint:errcheck // server shutdown errors are not recoverable
 	l.stop <- true
 	<-l.isBusy
 }
@@ -119,7 +125,7 @@ func (l *listener) startLoop() {
 	for {
 		select {
 		case <-l.start:
-			l.errorCatcher.TryCatchError(func() error {
+			err := l.errorCatcher.TryCatchError(func() error {
 				if err := l.bootstrapperFunc(l.configHandler.GetConfig(), l.serverSetter); err != nil {
 					return err
 				}
@@ -129,7 +135,7 @@ func (l *listener) startLoop() {
 				l.logger.Infof("%v - Listen on %v", l.serverSetter.Name, l.serverSetter.Addr)
 
 				switch l.serverSetter.ServerType {
-				case HttpServer:
+				case HTTPServer:
 					select {
 					case l.started <- true:
 					default:
@@ -161,6 +167,9 @@ func (l *listener) startLoop() {
 			}, func(err error) {
 				l.handleServerError(err)
 			})
+			if err != nil {
+				l.handleServerError(err)
+			}
 		case <-l.stop:
 			l.finish <- nil
 			l.stopped = true
@@ -175,9 +184,10 @@ func (l *listener) initializeServer() error {
 		return newListenerError(AddressNotConfigured, "address not configured", nil)
 	}
 	switch l.serverSetter.ServerType {
-	case HttpServer:
+	case HTTPServer:
 		l.httpServer = &http.Server{
-			ErrorLog: l.logger.GetErrorLogger(),
+			ErrorLog:          l.logger.GetErrorLogger(),
+			ReadHeaderTimeout: 10 * time.Second,
 		}
 		l.httpServer.Addr = l.serverSetter.Addr
 		if l.serverSetter.Handler != nil {
@@ -201,7 +211,7 @@ func (l *listener) initializeServer() error {
 
 func (l *listener) stopServer() error {
 	switch l.serverSetter.ServerType {
-	case HttpServer:
+	case HTTPServer:
 		if l.httpServer != nil {
 			if err := l.httpServer.Shutdown(context.Background()); err != nil {
 				return err
@@ -219,7 +229,7 @@ func (l *listener) restart() {
 	l.isBusy <- true
 	if !l.stopped {
 		l.logger.Tracef("%v Restart Server", l.serverSetter.Name)
-		_ = l.stopServer()
+		_ = l.stopServer() //nolint:errcheck // server shutdown errors are not recoverable
 		l.start <- true
 	}
 	<-l.isBusy
@@ -288,9 +298,15 @@ func (l *listener) handleServerError(err error) {
 
 func (l *listener) finalizeError(err error, sendError bool) {
 	if l.configHandler.CanRestore() {
-		_ = l.configHandler.Restore()
+		if restoreErr := l.configHandler.Restore(); restoreErr != nil {
+			l.logger.Errorf("%v - Failed to restore config: %v", l.serverSetter.Name, restoreErr)
+		}
 	} else if sendError {
-		l.finish <- l.pipeError(err).(ListenerError)
+		if listenerErr, ok := l.pipeError(err).(ListenerError); ok {
+			l.finish <- listenerErr
+		} else {
+			l.logger.Errorf("%v - Failed to convert error to ListenerError: %v", l.serverSetter.Name, err)
+		}
 		l.stopped = true
 	}
 }

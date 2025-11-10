@@ -1,4 +1,4 @@
-package orm_base
+package orm_base //nolint:revive // established package name, changing would break API
 
 import (
 	"reflect"
@@ -25,14 +25,7 @@ func NewDataAccess(db *gorm.DB, modelType reflect.Type) DataAccess {
 }
 
 func (r *dataAccess) Insert(datarow interface{}) error {
-	if reflect.TypeOf(datarow) != r.modelType {
-		return newDataBaseError(DataRowUnexpected, "The datarow does not belong to this datamodel!", nil)
-	}
-
-	if err := r.db.Model(r.datamodel).Create(datarow).Error; err != nil {
-		return err
-	}
-	return nil
+	return r.db.Model(r.datamodel).Create(datarow).Error
 }
 
 func (r *dataAccess) Select(datafilter interface{}, preloads ...string) (interface{}, error) {
@@ -53,11 +46,8 @@ func (r *dataAccess) Select(datafilter interface{}, preloads ...string) (interfa
 	return reflect.ValueOf(dataArray).Elem().Interface(), nil
 }
 
-func (r *dataAccess) Update(datafilter interface{}, datarow interface{}) error {
-	if err := r.db.Model(r.datamodel).Where(datafilter).Updates(datarow).Error; err != nil {
-		return err
-	}
-	return nil
+func (r *dataAccess) Update(datafilter, datarow interface{}) error {
+	return r.db.Model(r.datamodel).Where(datafilter).Updates(datarow).Error
 }
 
 func (r *dataAccess) Delete(datafilter interface{}, associateds ...string) error {

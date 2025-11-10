@@ -1,4 +1,4 @@
-package orm_base
+package orm_base //nolint:revive // established package name, changing would break API
 
 import (
 	"gorm.io/gorm"
@@ -9,7 +9,7 @@ func NewDB(dialectorResolver DialectorResolver, info *DatabaseInfo, config *gorm
 	if err != nil {
 		return nil, err
 	}
-	
+
 	db, err := gorm.Open(dialector, config)
 	if err != nil {
 		return nil, err

@@ -1,4 +1,5 @@
-package orm_base
+package orm_base //nolint:revive // established package name, changing would break API
+
 import (
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
 	"gorm.io/gorm"
@@ -21,7 +22,7 @@ func (dbResolver *dialectorResolver) Resolve(info *DatabaseInfo) (gorm.Dialector
 	if err != nil {
 		return nil, err
 	}
-	
+
 	getter := dependencyinjection.ResolveTenant[DialectorGetter](dbResolver.resolver, engineStr)
 	return getter.Get(info)
 }
