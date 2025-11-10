@@ -125,7 +125,7 @@ func (l *listener) startLoop() {
 	for {
 		select {
 		case <-l.start:
-			err := l.errorCatcher.TryCatchError(func() error {
+			_ = l.errorCatcher.TryCatchError(func() error { //nolint:errcheck // errors are handled in the error callback
 				if err := l.bootstrapperFunc(l.configHandler.GetConfig(), l.serverSetter); err != nil {
 					return err
 				}
@@ -167,9 +167,6 @@ func (l *listener) startLoop() {
 			}, func(err error) {
 				l.handleServerError(err)
 			})
-			if err != nil {
-				l.handleServerError(err)
-			}
 		case <-l.stop:
 			l.finish <- nil
 			l.stopped = true
@@ -237,7 +234,9 @@ func (l *listener) restart() {
 
 func (l *listener) onRestoredConfig() {
 	l.logger.Tracef("%v - Restored config", l.serverSetter.Name)
-	l.restart()
+	// After restore, just let the listener stop gracefully
+	// Don't attempt to restart as the config has been restored to disk
+	// and the listener should be manually restarted if needed
 }
 
 func (l *listener) onModifiedConfig() {

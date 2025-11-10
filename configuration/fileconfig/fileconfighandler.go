@@ -27,12 +27,13 @@ type fileConfigHandler struct {
 	fromFile     interface{}
 	*events.RestoredEventHandler
 	*events.ModifiedEventHandler
-	eventManager *eventsmanager.EventManager
-	stopRefresh  chan bool
-	filePath     string
-	period       configuration.Period
-	mutex        sync.RWMutex
-	isFreezed    bool
+	eventManager        *eventsmanager.EventManager
+	stopRefresh         chan bool
+	filePath            string
+	period              configuration.Period
+	mutex               sync.RWMutex
+	isFreezed           bool
+	ignoreNextFileEvent bool
 }
 
 // NewFileConfigHandler returns a ConfigHandler
@@ -105,10 +106,10 @@ func (f *fileConfigHandler) GetConfig() interface{} {
 // SetConfig updates the configuration and writes it to file
 func (f *fileConfigHandler) SetConfig(newConfig interface{}) error {
 	f.mutex.Lock()
-	defer f.mutex.Unlock()
 
 	f.oldconfig = f.createConfig()
 	if err := copier.Copy(f.oldconfig, f.dataconfig); err != nil {
+		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
 
@@ -116,22 +117,27 @@ func (f *fileConfigHandler) SetConfig(newConfig interface{}) error {
 	// para convertirlo al tipo correcto
 	configBytes, err := json.Marshal(newConfig)
 	if err != nil {
+		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
 
 	tempConfig := f.createConfig()
 	if err := json.Unmarshal(configBytes, tempConfig); err != nil {
+		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
 
 	if err := copier.Copy(f.dataconfig, tempConfig); err != nil {
+		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
 
 	if err := f.writeFile(); err != nil {
+		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
 
+	f.mutex.Unlock()
 	eventsmanager.Publish(f.eventManager, events.ModifiedEvent{})
 	return nil
 }
@@ -159,22 +165,43 @@ func (f *fileConfigHandler) CanRestore() bool {
 // Restore restores the configuration to an older version
 func (f *fileConfigHandler) Restore() error {
 	f.mutex.Lock()
-	defer f.mutex.Unlock()
 
 	if f.oldconfig == nil {
+		f.mutex.Unlock()
 		return f.pipeError(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil", nil))
 	}
+
+	// Create a backup of current config
 	f.newConfig = f.createConfig()
-	if err := copier.Copy(f.newConfig, f.dataconfig); err != nil {
+	newBytes, err := json.Marshal(f.dataconfig)
+	if err != nil {
+		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
-	if err := copier.Copy(f.dataconfig, f.oldconfig); err != nil {
+	if err := json.Unmarshal(newBytes, f.newConfig); err != nil {
+		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
+
+	// Restore old config using JSON for deep copy
+	oldBytes, err := json.Marshal(f.oldconfig)
+	if err != nil {
+		f.mutex.Unlock()
+		return f.pipeError(err)
+	}
+	if err := json.Unmarshal(oldBytes, f.dataconfig); err != nil {
+		f.mutex.Unlock()
+		return f.pipeError(err)
+	}
+
 	f.oldconfig = nil
+	f.ignoreNextFileEvent = true
 	if err := f.writeFile(); err != nil {
+		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
+
+	f.mutex.Unlock()
 	eventsmanager.Publish(f.eventManager, events.RestoredEvent{})
 	return nil
 }
@@ -215,28 +242,47 @@ func (f *fileConfigHandler) onModifiedConfigFile() {
 	f.errorCatcher.TryCatchError( //nolint:errcheck // TryCatchError handles errors internally via callback
 		func() error {
 			f.mutex.Lock()
-			defer f.mutex.Unlock()
+
+			// Ignore this event if we just wrote the file ourselves
+			if f.ignoreNextFileEvent {
+				f.ignoreNextFileEvent = false
+				f.mutex.Unlock()
+				return nil
+			}
 
 			if err := f.readFile(); err != nil {
+				f.mutex.Unlock()
 				return err
 			}
 			if !reflect.DeepEqual(f.fromFile, f.dataconfig) {
 				f.newConfig = f.createConfig()
 				if err := copier.Copy(f.newConfig, f.fromFile); err != nil {
+					f.mutex.Unlock()
 					return err
 				}
 				if !f.isFreezed {
+					// Use JSON for deep copy of old config
 					f.oldconfig = f.createConfig()
-					if err := copier.Copy(f.oldconfig, f.dataconfig); err != nil {
+					oldBytes, err := json.Marshal(f.dataconfig)
+					if err != nil {
+						f.mutex.Unlock()
+						return err
+					}
+					if err := json.Unmarshal(oldBytes, f.oldconfig); err != nil {
+						f.mutex.Unlock()
 						return err
 					}
 					if err := copier.Copy(f.dataconfig, f.newConfig); err != nil {
+						f.mutex.Unlock()
 						return err
 					}
 					f.newConfig = nil
+					f.mutex.Unlock()
 					eventsmanager.Publish(f.eventManager, events.ModifiedEvent{})
+					return nil
 				}
 			}
+			f.mutex.Unlock()
 			return nil
 		},
 		func(err error) {
