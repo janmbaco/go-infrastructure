@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/janmbaco/copier"
@@ -32,6 +33,7 @@ type fileConfigHandler struct {
 	period       configuration.Period
 	errorCatcher errors.ErrorCatcher
 	stopRefresh  chan bool
+	mutex        sync.RWMutex
 }
 
 // NewFileConfigHandler returns a ConfigHandler
@@ -96,11 +98,16 @@ func (f *fileConfigHandler) Unfreeze() {
 
 // GetConfig get the current config applied
 func (f *fileConfigHandler) GetConfig() interface{} {
+	f.mutex.RLock()
+	defer f.mutex.RUnlock()
 	return f.dataconfig
 }
 
 // SetConfig updates the configuration and writes it to file
 func (f *fileConfigHandler) SetConfig(newConfig interface{}) error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
 	f.oldconfig = f.createConfig()
 	if err := copier.Copy(f.oldconfig, f.dataconfig); err != nil {
 		return f.pipeError(err)
@@ -132,6 +139,9 @@ func (f *fileConfigHandler) SetConfig(newConfig interface{}) error {
 
 // ForceRefresh forces a refresh of the configuration
 func (f *fileConfigHandler) ForceRefresh() error {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
 	if f.newConfig != nil && !reflect.DeepEqual(f.newConfig, f.dataconfig) {
 		if err := copier.Copy(f.dataconfig, f.newConfig); err != nil {
 			return f.pipeError(err)
@@ -142,12 +152,17 @@ func (f *fileConfigHandler) ForceRefresh() error {
 
 // CanRestore indicates if the config can be restored
 func (f *fileConfigHandler) CanRestore() bool {
+	f.mutex.RLock()
+	defer f.mutex.RUnlock()
 	return f.oldconfig != nil
 }
 
 // Restore restores the configuration to an older version
 func (f *fileConfigHandler) Restore() error {
-	if !f.CanRestore() {
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	if f.oldconfig == nil {
 		return f.pipeError(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil", nil))
 	}
 	f.newConfig = f.createConfig()
@@ -201,6 +216,9 @@ func (f *fileConfigHandler) writeFile() error {
 func (f *fileConfigHandler) onModifiedConfigFile() {
 	f.errorCatcher.TryCatchError(
 		func() error {
+			f.mutex.Lock()
+			defer f.mutex.Unlock()
+
 			if err := f.readFile(); err != nil {
 				return err
 			}

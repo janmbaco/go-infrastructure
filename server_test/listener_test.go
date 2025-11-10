@@ -7,18 +7,17 @@ import (
 	"time"
 
 	"github.com/janmbaco/go-infrastructure/configuration"
-	"github.com/janmbaco/go-infrastructure/configuration/fileconfig"
+	"github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc"
+	fileConfigResolver "github.com/janmbaco/go-infrastructure/configuration/fileconfig/ioc/resolver"
 	"github.com/janmbaco/go-infrastructure/dependencyinjection"
 	"github.com/janmbaco/go-infrastructure/disk"
-	"github.com/janmbaco/go-infrastructure/errors"
+	diskIoc "github.com/janmbaco/go-infrastructure/disk/ioc"
 	errorsIoc "github.com/janmbaco/go-infrastructure/errors/ioc"
-	errorsResolver "github.com/janmbaco/go-infrastructure/errors/ioc/resolver"
-	"github.com/janmbaco/go-infrastructure/eventsmanager"
 	eventsIoc "github.com/janmbaco/go-infrastructure/eventsmanager/ioc"
-	"github.com/janmbaco/go-infrastructure/logs"
 	logsIoc "github.com/janmbaco/go-infrastructure/logs/ioc"
-	logsResolver "github.com/janmbaco/go-infrastructure/logs/ioc/resolver"
 	"github.com/janmbaco/go-infrastructure/server"
+	serverIoc "github.com/janmbaco/go-infrastructure/server/ioc"
+	serverResolver "github.com/janmbaco/go-infrastructure/server/ioc/resolver"
 )
 
 // / <summary>
@@ -26,9 +25,8 @@ import (
 // / </summary>
 type ListenerTests struct {
 	configFilePath string
-	logger         logs.Logger
-	errorCatcher   errors.ErrorCatcher
 	configHandler  configuration.ConfigHandler
+	Resolver       dependencyinjection.Resolver
 }
 
 type testConfig struct {
@@ -50,34 +48,17 @@ func (lt *ListenerTests) setup(t *testing.T) {
 		AddModule(logsIoc.NewLogsModule()).
 		AddModule(errorsIoc.NewErrorsModule()).
 		AddModule(eventsIoc.NewEventsModule()).
+		AddModule(diskIoc.NewDiskModule()).
+		AddModule(ioc.NewConfigurationModule()).
+		AddModule(serverIoc.NewServerModule()).
 		MustBuild()
 
 	resolver := container.Resolver()
 
-	// Resolve services
-	lt.logger = logsResolver.GetLogger(resolver)
-	lt.errorCatcher = errorsResolver.GetErrorCatcher(resolver)
-	eventManager := resolver.Type(new(*eventsmanager.EventManager), nil).(*eventsmanager.EventManager)
-
-	// Create subscriptions and publisher for file change events
-
-	filechangeNotifier, err := disk.NewFileChangedNotifier(lt.configFilePath, eventManager, lt.logger)
-	if err != nil {
-		t.Fatalf("setup failed: %v", err)
-	}
-
-	configHandler, err := fileconfig.NewFileConfigHandler(
+	lt.Resolver = resolver
+	lt.configHandler = fileConfigResolver.GetFileConfigHandler(resolver,
 		lt.configFilePath,
-		&testConfig{Address: firstAddress, Address2: secondAddress},
-		lt.errorCatcher,
-		eventManager,
-		filechangeNotifier,
-		lt.logger,
-	)
-	if err != nil {
-		t.Fatalf("setup failed: %v", err)
-	}
-	lt.configHandler = configHandler
+		&testConfig{Address: firstAddress, Address2: secondAddress})
 }
 
 func (lt *ListenerTests) teardown() {
@@ -85,7 +66,7 @@ func (lt *ListenerTests) teardown() {
 }
 
 func (lt *ListenerTests) createListener(name string, addressSelector func(*testConfig) string) (server.Listener, error) {
-	builder := server.NewListenerBuilder(lt.configHandler, lt.logger, lt.errorCatcher)
+	builder := serverResolver.GetListenerBuilder(lt.Resolver, lt.configHandler)
 	builder.SetBootstrapper(func(config interface{}, serverSetter *server.ServerSetter) error {
 		serverSetter.Name = name
 		mux := http.NewServeMux()
@@ -128,14 +109,11 @@ func TestListener_WhenPortConflictOccurs_ThenRecoversByRestoringConfig(t *testin
 	if err != nil {
 		t.Fatalf("Arrange failed: %v", err)
 	}
-
 	finish1 := listener1.Start()
 	finish2 := listener2.Start()
-	time.Sleep(100 * time.Millisecond)
 
 	// Act
 	lt.updateConfigToDuplicatePort(t)
-	time.Sleep(200 * time.Millisecond)
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
