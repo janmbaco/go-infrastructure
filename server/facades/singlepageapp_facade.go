@@ -4,13 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc"
 	configResolver "github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc/resolver"
 	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
-	diskIoc "github.com/janmbaco/go-infrastructure/v2/disk/ioc"
-	errorsIoc "github.com/janmbaco/go-infrastructure/v2/errors/ioc"
-	eventsIoc "github.com/janmbaco/go-infrastructure/v2/eventsmanager/ioc"
-	logsIoc "github.com/janmbaco/go-infrastructure/v2/logs/ioc"
 	"github.com/janmbaco/go-infrastructure/v2/server"
 	serverIoc "github.com/janmbaco/go-infrastructure/v2/server/ioc"
 	serverResolver "github.com/janmbaco/go-infrastructure/v2/server/ioc/resolver"
@@ -29,12 +24,7 @@ func SinglePageAppStart(port, staticPath, index string) {
 
 	// Build container with required modules
 	container := dependencyinjection.NewBuilder().
-		AddModule(logsIoc.NewLogsModule()).
-		AddModule(errorsIoc.NewErrorsModule()).
-		AddModule(eventsIoc.NewEventsModule()).
-		AddModule(diskIoc.NewDiskModule()).
-		AddModule(ioc.NewConfigurationModule()).
-		AddModule(serverIoc.NewServerModule()).
+		AddModules(serverIoc.ConfigureServerModules()...).
 		MustBuild()
 
 	resolver := container.Resolver()

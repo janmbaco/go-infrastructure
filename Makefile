@@ -1,16 +1,17 @@
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  make test          - Run all tests"
-	@echo "  make test-verbose  - Run tests with verbose output"
-	@echo "  make test-coverage - Run tests with coverage report"
-	@echo "  make lint          - Run linter"
-	@echo "  make fmt           - Format code"
-	@echo "  make build         - Build all packages"
-	@echo "  make clean         - Clean build artifacts"
-	@echo "  make deps          - Download dependencies"
-	@echo "  make deps-verify   - Verify dependencies"
-	@echo "  make vuln-check    - Check for vulnerabilities"
+	@echo "  make test              - Run all tests"
+	@echo "  make test-verbose      - Run tests with verbose output"
+	@echo "  make test-coverage     - Run tests with coverage report"
+	@echo "  make test-integration  - Run integration tests with Docker databases"
+	@echo "  make lint              - Run linter"
+	@echo "  make fmt               - Format code"
+	@echo "  make build             - Build all packages"
+	@echo "  make clean             - Clean build artifacts"
+	@echo "  make deps              - Download dependencies"
+	@echo "  make deps-verify       - Verify dependencies"
+	@echo "  make vuln-check        - Check for vulnerabilities"
 
 .PHONY: test
 test:
@@ -19,6 +20,11 @@ test:
 .PHONY: test-verbose
 test-verbose:
 	go test -v ./... -count=1
+
+.PHONY: test-integration
+test-integration:
+	@echo "Starting integration tests with Docker databases..."
+	@cd persistence/integration_test && powershell -ExecutionPolicy Bypass -File ./run-integration-tests.ps1
 
 .PHONY: test-coverage
 test-coverage:

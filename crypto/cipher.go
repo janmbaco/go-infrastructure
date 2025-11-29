@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 )
 
 // Cipher defines an object responsible to cipher and deciphers values by a key
@@ -40,6 +41,9 @@ func (c *cipherImp) Encrypt(value []byte) ([]byte, error) {
 // Decrypt deciphers the value
 func (c *cipherImp) Decrypt(value []byte) ([]byte, error) {
 	nonceSize := c.aead.NonceSize()
+	if len(value) < nonceSize {
+		return nil, errors.New("ciphertext too short")
+	}
 	nonce, cipherValue := value[:nonceSize], value[nonceSize:]
 	plainValue, err := c.aead.Open(nil, nonce, cipherValue, nil)
 	if err != nil {

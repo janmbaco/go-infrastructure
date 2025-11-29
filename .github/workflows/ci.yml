@@ -55,7 +55,7 @@ jobs:
         if: matrix.go-version == '1.25'
         uses: codecov/codecov-action@v5
         with:
-          file: ./coverage.out
+          files: ./coverage.out
           flags: unittests
           name: codecov-go-infrastructure
 

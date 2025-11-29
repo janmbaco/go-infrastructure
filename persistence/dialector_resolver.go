@@ -1,4 +1,4 @@
-package orm_base //nolint:revive // established package name, changing would break API
+package persistence //nolint:revive // established package name, changing would break API
 
 import (
 	"github.com/janmbaco/go-infrastructure/v2/dependencyinjection"

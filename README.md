@@ -740,7 +740,10 @@ GORM-based data access layer with multi-database support.
 
 ```go
 import (
-    "github.com/janmbaco/go-infrastructure/v2/persistence/orm_base"
+    "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    "github.com/janmbaco/go-infrastructure/v2/persistence"
+    "github.com/janmbaco/go-infrastructure/v2/persistence/dataaccess"
+    persistenceioc "github.com/janmbaco/go-infrastructure/v2/persistence/ioc"
     "gorm.io/gorm"
 )
 
@@ -749,21 +752,14 @@ type User struct {
     Name string
 }
 
-dbInfo := &orm_base.DatabaseInfo{
-    Engine:       orm_base.Postgres,
-    Host:         "localhost",
-    Port:         "5432",
-    Name:         "myapp",
-    UserName:     "postgres",
-    UserPassword: "password",
-}
+container := dependencyinjection.NewBuilder().
+    AddModule(persistenceioc.ConfigureDatabaseModule(
+        "localhost", "5432", "postgres", "password", "myapp", persistence.Postgres,
+    )).
+    MustBuild()
 
-db := orm_base.NewDB(
-    dialectorResolver,
-    dbInfo,
-    &gorm.Config{},
-    []interface{}{&User{}}, // Auto-migrate
-)
+db := container.Resolver().Type(new(*gorm.DB), nil).(*gorm.DB)
+userAccess := dataaccess.NewTypedDataAccess[User](db)
 ```
 
 #### Supported Databases
@@ -1001,6 +997,65 @@ golangci-lint run
 go test ./... -coverprofile=coverage.out
 go tool cover -html=coverage.out
 ```
+
+---
+
+## Testing
+
+### Unit Tests
+
+Run all unit tests:
+```bash
+make test
+```
+
+Run with verbose output:
+```bash
+make test-verbose
+```
+
+Run with coverage:
+```bash
+make test-coverage
+```
+
+### Integration Tests
+
+The project includes comprehensive integration tests that verify functionality across multiple database backends using Docker containers.
+
+**Supported databases:**
+- PostgreSQL 15
+- MySQL 8.0
+- SQL Server 2022
+
+**Run integration tests:**
+```bash
+make test-integration
+```
+
+This will:
+1. Start Docker containers for all supported databases
+2. Wait for databases to be ready
+3. Run integration tests against each database
+4. Clean up containers automatically
+
+**Requirements:**
+- Docker and Docker Compose installed
+- PowerShell (Windows) or Bash (Linux/Mac)
+
+**Manual execution:**
+```bash
+# Start databases
+docker-compose -f persistence/integration_test/docker-compose.test.yml up -d
+
+# Run tests
+go test -tags=integration -v ./persistence/integration_test
+
+# Clean up
+docker-compose -f persistence/integration_test/docker-compose.test.yml down -v
+```
+
+See [INTEGRATION_TESTS.md](./INTEGRATION_TESTS.md) for detailed documentation.
 
 ---
 

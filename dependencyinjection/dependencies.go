@@ -86,8 +86,9 @@ func (do *dependencyObject) Create(params map[string]interface{}, dependencies D
 		panic("The provider must be a Func!")
 	}
 	args := make([]reflect.Value, 0)
-	if functionType.NumIn() > 0 {
-		for i := 0; i < functionType.NumIn(); i++ {
+	total := functionType.NumIn()
+	if total > 0 {
+		for i := range make([]struct{}, total) {
 			var name = do.argNames[i]
 			if object, isInParamas := params[do.argNames[i]]; name != "" && isInParamas {
 				args = append(args, reflect.ValueOf(object))
