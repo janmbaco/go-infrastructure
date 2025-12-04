@@ -1,6 +1,7 @@
 package dependencyinjection
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -14,7 +15,7 @@ type Dependencies interface {
 }
 
 type DependencyObject interface {
-	Create(params map[string]interface{}, dependencies Dependencies, scopeObjects map[DependencyObject]interface{}) interface{}
+	Create(ctx context.Context, params map[string]interface{}, dependencies Dependencies, scopeObjects map[DependencyObject]interface{}) interface{}
 }
 
 type DependencyKey struct {
@@ -70,7 +71,12 @@ type dependencyObject struct {
 	dependecyType dependecyType
 }
 
-func (do *dependencyObject) Create(params map[string]interface{}, dependencies Dependencies, scopedObjects map[DependencyObject]interface{}) interface{} {
+func (do *dependencyObject) Create(ctx context.Context, params map[string]interface{}, dependencies Dependencies, scopedObjects map[DependencyObject]interface{}) interface{} {
+
+	// Check for context cancellation
+	if err := ctx.Err(); err != nil {
+		panic(fmt.Errorf("context error during dependency resolution: %w", err))
+	}
 
 	if do.object != nil {
 		return do.object
@@ -85,15 +91,28 @@ func (do *dependencyObject) Create(params map[string]interface{}, dependencies D
 	if functionType.Kind() != reflect.Func {
 		panic("The provider must be a Func!")
 	}
+
 	args := make([]reflect.Value, 0)
 	total := functionType.NumIn()
 	if total > 0 {
-		for i := range make([]struct{}, total) {
+		// Check if first parameter is context.Context
+		firstArgIsContext := false
+		if functionType.In(0).String() == "context.Context" {
+			firstArgIsContext = true
+			args = append(args, reflect.ValueOf(ctx))
+		}
+
+		startIdx := 0
+		if firstArgIsContext {
+			startIdx = 1
+		}
+
+		for i := startIdx; i < total; i++ {
 			var name = do.argNames[i]
 			if object, isInParamas := params[do.argNames[i]]; name != "" && isInParamas {
 				args = append(args, reflect.ValueOf(object))
 			} else {
-				args = append(args, reflect.ValueOf(dependencies.Get(DependencyKey{Iface: functionType.In(i)}).Create(params, dependencies, scopedObjects)))
+				args = append(args, reflect.ValueOf(dependencies.Get(DependencyKey{Iface: functionType.In(i)}).Create(ctx, params, dependencies, scopedObjects)))
 			}
 		}
 	}

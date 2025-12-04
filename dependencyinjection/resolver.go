@@ -25,23 +25,23 @@ func newResolver(dependencies Dependencies) Resolver {
 
 // Type gets a dependency by the interface and params
 func (r *resolver) Type(iface interface{}, params map[string]interface{}) interface{} {
-	return r.dependencies.Get(DependencyKey{Iface: reflect.Indirect(reflect.ValueOf(iface)).Type()}).Create(params, r.dependencies, make(map[DependencyObject]interface{}))
+	return r.TypeCtx(context.Background(), iface, params)
 }
 
 // Tenant gets a dependency by the interface, the tenant key and paramas
 func (r *resolver) Tenant(tenant string, iface interface{}, params map[string]interface{}) interface{} {
+	return r.TenantCtx(context.Background(), tenant, iface, params)
+}
+
+// TypeCtx resolves with context
+func (r *resolver) TypeCtx(ctx context.Context, iface interface{}, params map[string]interface{}) interface{} {
+	return r.dependencies.Get(DependencyKey{Iface: reflect.Indirect(reflect.ValueOf(iface)).Type()}).Create(ctx, params, r.dependencies, make(map[DependencyObject]interface{}))
+}
+
+// TenantCtx resolves with context
+func (r *resolver) TenantCtx(ctx context.Context, tenant string, iface interface{}, params map[string]interface{}) interface{} {
 	return r.dependencies.Get(DependencyKey{
 		Tenant: tenant,
 		Iface:  reflect.Indirect(reflect.ValueOf(iface)).Type(),
-	}).Create(params, r.dependencies, make(map[DependencyObject]interface{}))
-}
-
-// TypeCtx resolves with context (delegates to Type for now)
-func (r *resolver) TypeCtx(ctx context.Context, iface interface{}, params map[string]interface{}) interface{} {
-	return r.Type(iface, params)
-}
-
-// TenantCtx resolves with context (delegates to Tenant for now)
-func (r *resolver) TenantCtx(ctx context.Context, tenant string, iface interface{}, params map[string]interface{}) interface{} {
-	return r.Tenant(tenant, iface, params)
+	}).Create(ctx, params, r.dependencies, make(map[DependencyObject]interface{}))
 }

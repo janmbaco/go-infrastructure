@@ -1,6 +1,7 @@
 package dependencyinjection
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -66,10 +67,11 @@ func TestDependencyObject_Create_WhenSingleton_ThenReturnsSameInstance(t *testin
 	deps := newDependencies()
 	params := map[string]interface{}{}
 	scoped := make(map[DependencyObject]interface{})
+	ctx := context.Background()
 
 	// Act
-	first := obj.Create(params, deps, scoped)
-	second := obj.Create(params, deps, scoped)
+	first := obj.Create(ctx, params, deps, scoped)
+	second := obj.Create(ctx, params, deps, scoped)
 
 	// Assert
 	assert.Equal(t, "test", first)
@@ -86,10 +88,11 @@ func TestDependencyObject_Create_WhenScoped_ThenReturnsSameInScope(t *testing.T)
 	deps := newDependencies()
 	params := map[string]interface{}{}
 	scoped := make(map[DependencyObject]interface{})
+	ctx := context.Background()
 
 	// Act
-	first := obj.Create(params, deps, scoped)
-	second := obj.Create(params, deps, scoped)
+	first := obj.Create(ctx, params, deps, scoped)
+	second := obj.Create(ctx, params, deps, scoped)
 
 	// Assert
 	assert.Equal(t, "test", first)
@@ -106,10 +109,11 @@ func TestDependencyObject_Create_WhenNewType_ThenReturnsNewInstance(t *testing.T
 	deps := newDependencies()
 	params := map[string]interface{}{}
 	scoped := make(map[DependencyObject]interface{})
+	ctx := context.Background()
 
 	// Act
-	first := obj.Create(params, deps, scoped)
-	second := obj.Create(params, deps, scoped)
+	first := obj.Create(ctx, params, deps, scoped)
+	second := obj.Create(ctx, params, deps, scoped)
 
 	// Assert
 	assert.Equal(t, "test", first)
@@ -126,10 +130,11 @@ func TestDependencyObject_Create_WhenProviderReturnsError_ThenPanics(t *testing.
 	deps := newDependencies()
 	params := map[string]interface{}{}
 	scoped := make(map[DependencyObject]interface{})
+	ctx := context.Background()
 
 	// Act & Assert
 	assert.Panics(t, func() {
-		obj.Create(params, deps, scoped)
+		obj.Create(ctx, params, deps, scoped)
 	})
 }
 
@@ -142,10 +147,11 @@ func TestDependencyObject_Create_WhenProviderNotFunc_ThenPanics(t *testing.T) {
 	deps := newDependencies()
 	params := map[string]interface{}{}
 	scoped := make(map[DependencyObject]interface{})
+	ctx := context.Background()
 
 	// Act & Assert
 	assert.Panics(t, func() {
-		obj.Create(params, deps, scoped)
+		obj.Create(ctx, params, deps, scoped)
 	})
 }
 
@@ -154,6 +160,6 @@ type mockDependencyObject struct {
 	created interface{}
 }
 
-func (m *mockDependencyObject) Create(params map[string]interface{}, dependencies Dependencies, scopeObjects map[DependencyObject]interface{}) interface{} {
+func (m *mockDependencyObject) Create(ctx context.Context, params map[string]interface{}, dependencies Dependencies, scopeObjects map[DependencyObject]interface{}) interface{} {
 	return m.created
 }
