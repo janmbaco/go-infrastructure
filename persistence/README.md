@@ -1,299 +1,261 @@
-# 🚀 Persistence Package - Simple & Powerful Data Access
+# Persistence
 
-> **One-line setup, zero boilerplate** - Connect to any database and start querying in minutes!
+`github.com/janmbaco/go-infrastructure/v2/persistence`
 
-The `persistence` package gives you a clean, type-safe way to work with databases in Go. Whether you're building a simple app or a complex enterprise system, this package makes database operations feel natural and enjoyable.
+The `persistence` package provides database wiring and typed CRUD helpers on top of GORM. It supports PostgreSQL, MySQL, SQLite and SQL Server, and it is designed to work both with the DI container in this repository and with plain `*gorm.DB` usage.
 
-## ✨ What's So Great About It?
+## What It Includes
 
-- **🔧 Zero Configuration**: Just add one module and you're ready to query
-- **🎯 Type-Safe**: Full Go generics support with compile-time safety
-- **🗄️ Multi-Database**: PostgreSQL, MySQL, SQLite, SQL Server - all supported
-- **🔄 Dependency Injection**: Seamlessly integrates with your DI container
-- **🧪 Battle-Tested**: Comprehensive tests with real databases
-- **📚 Simple API**: Just 4 methods: Insert, Select, Update, Delete
+- `DatabaseInfo` and `DbEngine` to describe database connections
+- `NewDB` to build a `*gorm.DB` from a dialector resolver
+- `ioc.ConfigureDatabaseModule` for the simplest DI-based setup
+- `dataaccess.NewTypedDataAccess[T]` and generic CRUD helpers
+- `DB()` access for advanced GORM queries when CRUD helpers are not enough
 
-## 🚀 Quick Start (5 Minutes!)
+## Install
 
-### 1. Choose Your Database
-
-```go
-// PostgreSQL
-dbInfo := &persistence.DatabaseInfo{
-    Host: "localhost", Port: "5432", Name: "myapp",
-    UserName: "myuser", UserPassword: "mypass",
-    Engine: persistence.Postgres,
-}
-
-// MySQL
-dbInfo := &persistence.DatabaseInfo{
-    Host: "localhost", Port: "3306", Name: "myapp",
-    UserName: "myuser", UserPassword: "mypass",
-    Engine: persistence.MySQL,
-}
-
-// SQLite (super simple!)
-dbInfo := &persistence.DatabaseInfo{
-    Name: "/path/to/myapp.db",
-    Engine: persistence.Sqlite,
-}
+```bash
+go get github.com/janmbaco/go-infrastructure/v2/persistence
 ```
 
-### 2. Setup Your Container (One Line!)
+## Recommended Setup
+
+For most applications, the simplest path is:
+
+1. register a database module with `ioc.ConfigureDatabaseModule`
+2. resolve `*gorm.DB`
+3. build typed accessors with `dataaccess.NewTypedDataAccess[T]`
 
 ```go
-container := dependencyinjection.NewBuilder().
-    AddModule(persistenceioc.ConfigureDatabaseModule(
-        dbInfo.Host, dbInfo.Port, dbInfo.UserName,
-        dbInfo.UserPassword, dbInfo.Name, dbInfo.Engine,
-    )).
-    MustBuild()
+package main
 
-resolver := container.Resolver()
-```
+import (
+    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    "github.com/janmbaco/go-infrastructure/v2/persistence"
+    persistenceioc "github.com/janmbaco/go-infrastructure/v2/persistence/ioc"
+    "github.com/janmbaco/go-infrastructure/v2/persistence/dataaccess"
+    "gorm.io/gorm"
+)
 
-### 3. Define Your Models
-
-```go
 type User struct {
     ID    uint   `gorm:"primaryKey"`
     Name  string `gorm:"size:100;not null"`
     Email string `gorm:"size:100;unique;not null"`
-    Age   int    `gorm:"not null"`
 }
 
+func main() {
+    container := di.NewBuilder().
+        AddModule(persistenceioc.ConfigureDatabaseModule(
+            "", "", "", "", "./app.db", persistence.Sqlite,
+        )).
+        MustBuild()
+
+    resolver := container.Resolver()
+    db := resolver.Type(new(*gorm.DB), nil).(*gorm.DB)
+
+    userAccess := dataaccess.NewTypedDataAccess[User](db)
+    _, _ = dataaccess.SelectRows(userAccess, &User{})
+}
+```
+
+For PostgreSQL, MySQL and SQL Server, pass host, port, user, password and database name to `ConfigureDatabaseModule`. For SQLite, pass the database path as `dbName`.
+
+## Direct `NewDB` Usage
+
+If you want to construct the GORM connection directly, use `NewDB` with a dialector resolver:
+
+```go
+package main
+
+import (
+    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    "github.com/janmbaco/go-infrastructure/v2/persistence"
+    dialectorsioc "github.com/janmbaco/go-infrastructure/v2/persistence/dialectors/ioc"
+    "gorm.io/gorm"
+)
+
+type User struct {
+    ID    uint   `gorm:"primaryKey"`
+    Email string `gorm:"size:100;unique;not null"`
+}
+
+func main() {
+    container := di.NewBuilder().
+        AddModule(dialectorsioc.NewDialectorsModule()).
+        MustBuild()
+
+    resolver := persistence.NewDialectorResolver(container.Resolver())
+
+    db, err := persistence.NewDB(
+        resolver,
+        &persistence.DatabaseInfo{
+            Name:   "./app.db",
+            Engine: persistence.Sqlite,
+        },
+        &gorm.Config{},
+        []interface{}{&User{}},
+    )
+    if err != nil {
+        panic(err)
+    }
+
+    _ = db
+}
+```
+
+This path is useful when you want explicit control over `gorm.Config` and startup migrations.
+
+## Core Types
+
+Connection metadata:
+
+```go
+type DatabaseInfo struct {
+    Host         string
+    Port         string
+    Name         string
+    UserName     string
+    UserPassword string
+    Engine       DbEngine
+}
+
+const (
+    SQLServer DbEngine = iota
+    Postgres
+    MySQL
+    Sqlite
+)
+```
+
+CRUD abstraction:
+
+```go
+type DataAccess interface {
+    Insert(datarow interface{}) error
+    Select(datafilter interface{}, preloads ...string) (interface{}, error)
+    Update(datafilter interface{}, datarow interface{}) error
+    Delete(datafilter interface{}, associateds ...string) error
+    DB() interface{}
+}
+```
+
+`Select` uses exact-match struct filters. For range queries, joins or engine-specific SQL, use the underlying `*gorm.DB` through `DB()`.
+
+## CRUD Example
+
+```go
+userAccess := dataaccess.NewTypedDataAccess[User](db)
+
+user := &User{Name: "Alice", Email: "alice@example.com"}
+if err := dataaccess.InsertRow(userAccess, user); err != nil {
+    panic(err)
+}
+
+users, err := dataaccess.SelectRows(userAccess, &User{Email: "alice@example.com"})
+if err != nil {
+    panic(err)
+}
+
+user.Name = "Alice Johnson"
+if err := dataaccess.UpdateRow(userAccess, &User{ID: user.ID}, user); err != nil {
+    panic(err)
+}
+
+if err := dataaccess.DeleteRows(userAccess, &User{ID: user.ID}); err != nil {
+    panic(err)
+}
+
+_ = users
+```
+
+## Associations and Preloads
+
+Preloads are passed directly to `SelectRows`:
+
+```go
 type Profile struct {
     ID     uint   `gorm:"primaryKey"`
     UserID uint   `gorm:"not null"`
     Bio    string `gorm:"size:500"`
     User   User   `gorm:"foreignKey:UserID"`
 }
+
+profileAccess := dataaccess.NewTypedDataAccess[Profile](db)
+
+profiles, err := dataaccess.SelectRows(profileAccess, &Profile{}, "User")
+if err != nil {
+    panic(err)
+}
+
+_ = profiles
 ```
 
-### 4. Start Querying! 🎉
+Associated deletions can be requested through `DeleteRows`:
 
 ```go
-// Get typed data access (that's it!)
-userAccess := dataaccess.NewTypedDataAccess[User](resolver.Type(new(*gorm.DB), nil).(*gorm.DB))
-
-// Create a user
-user := &User{Name: "Alice", Email: "alice@example.com", Age: 28}
-err := dataaccess.InsertRow(userAccess, user)
-
-// Find users
-users, err := dataaccess.SelectRows(userAccess, &User{Email: "alice@example.com"})
-
-// Update user
-user.Name = "Alice Johnson"
-err = dataaccess.UpdateRow(userAccess, &User{ID: user.ID}, user)
-
-// Delete user
-err = dataaccess.DeleteRows(userAccess, &User{ID: user.ID})
+if err := dataaccess.DeleteRows(profileAccess, &Profile{UserID: user.ID}, "User"); err != nil {
+    panic(err)
+}
 ```
 
-**That's it!** You're now doing type-safe database operations with full CRUD support.
+## Advanced Queries
 
-## 🔧 Advanced Queries with DB() Method
-
-For complex queries that go beyond the basic CRUD operations, you can access the underlying GORM database directly:
+`DB()` exposes the wrapped `*gorm.DB` for queries that do not fit the generic CRUD helpers:
 
 ```go
-// Get raw GORM instance for advanced operations
 gormDB := userAccess.DB().(*gorm.DB)
 
-// Complex queries with joins, aggregations, etc.
-var result []User
-err := gormDB.
-    Select("users.name, COUNT(orders.id) as order_count").
-    Joins("LEFT JOIN orders ON users.id = orders.user_id").
-    Group("users.id").
-    Having("order_count > ?", 5).
-    Find(&result).Error
-
-// Raw SQL when needed (still parameterized!)
 var stats struct {
-    TotalUsers int
+    TotalUsers  int
     ActiveUsers int
 }
+
 err := gormDB.Raw(`
-    SELECT 
+    SELECT
         COUNT(*) as total_users,
-        COUNT(CASE WHEN last_login > ? THEN 1 END) as active_users
+        SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) as active_users
     FROM users
-`, time.Now().Add(-30*24*time.Hour)).Scan(&stats).Error
-```
-
-> **Security Note**: Even with raw access, GORM automatically parameterizes queries to prevent SQL injection.
-
-## 📖 Core Concepts
-
-### DataAccess Interface
-
-Everything revolves around this simple interface:
-
-```go
-type DataAccess interface {
-    Insert(datarow interface{}) error           // Create
-    Select(datafilter interface{}, preloads ...string) (interface{}, error)  // Read
-    Update(datafilter interface{}, datarow interface{}) error   // Update
-    Delete(datafilter interface{}, associateds ...string) error // Delete
-}
-```
-
-### Type-Safe Operations
-
-No more `interface{}` casting or reflection headaches:
-
-```go
-// ✅ Type-safe: Compiler catches errors
-userAccess := dataaccess.NewTypedDataAccess[User](db)
-users, err := dataaccess.SelectRows[User](userAccess, &User{Name: "Alice"})
-
-// ❌ Old way: Runtime errors possible
-genericAccess := someGenericDataAccess(db)
-users, err := genericAccess.Select(&User{Name: "Alice"})
-```
-
-## 🗄️ Database Support
-
-### PostgreSQL
-```go
-container := dependencyinjection.NewBuilder().
-    AddModule(persistenceioc.ConfigureDatabaseModule(
-        "localhost", "5432", "myuser", "mypass", "myapp", persistence.Postgres,
-    )).
-    MustBuild()
-```
-
-### MySQL
-```go
-container := dependencyinjection.NewBuilder().
-    AddModule(persistenceioc.ConfigureDatabaseModule(
-        "localhost", "3306", "myuser", "mypass", "myapp", persistence.MySQL,
-    )).
-    MustBuild()
-```
-
-### SQLite
-```go
-container := dependencyinjection.NewBuilder().
-    AddModule(persistenceioc.ConfigureDatabaseModule(
-        "", "", "", "", "/path/to/app.db", persistence.Sqlite,
-    )).
-    MustBuild()
-```
-
-### SQL Server
-```go
-container := dependencyinjection.NewBuilder().
-    AddModule(persistenceioc.ConfigureDatabaseModule(
-        "localhost", "1433", "sa", "MyPass123!", "myapp", persistence.SQLServer,
-    )).
-    MustBuild()
-```
-
-## 🎯 Advanced Usage
-
-### Working with Relationships
-
-```go
-// Get user with profile
-profileAccess := dataaccess.NewTypedDataAccess[Profile](db)
-profiles, err := dataaccess.SelectRows[Profile](profileAccess, &Profile{}, "User")
-
-// Delete user and profile together
-err = dataaccess.DeleteRows(profileAccess, &Profile{UserID: userID}, "User")
-```
-
-### Custom Queries with Filters
-
-```go
-// Find users exactly 18 years old
-eighteenYearOlds, err := dataaccess.SelectRows(userAccess, &User{Age: 18})
-
-// Find by multiple fields (all must match exactly)
-activeUser := &User{Email: "alice@example.com", Age: 28}
-user, err := dataaccess.SelectRows(userAccess, activeUser)
-
-// Find all users (empty filter)
-allUsers, err := dataaccess.SelectRows(userAccess, &User{})
-```
-
-**Note**: Filters use exact matching by default. For range queries or complex conditions, you'll need to use GORM's query builder directly.
-
-### Error Handling
-
-The package provides clear, actionable errors:
-
-```go
-user := &User{Name: "Bob", Email: "alice@example.com"} // Duplicate email
-err := dataaccess.InsertRow(userAccess, user)
+`).Scan(&stats).Error
 if err != nil {
-    // Handle constraint violation
-    log.Printf("Failed to create user: %v", err)
+    panic(err)
 }
 ```
 
-## 🧪 Testing
+## Database Support
 
-### Unit Tests
+- PostgreSQL
+- MySQL
+- SQLite
+- SQL Server
+
+`ioc.ConfigureDatabaseModule` selects the right dialector based on `DbEngine`.
+
+## Testing
+
+Unit tests:
+
 ```bash
-go test ./persistence/dataaccess/...
+go test ./persistence/...
 ```
 
-### Integration Tests (Real Databases!)
+SQLite integration coverage:
+
 ```bash
-# Uses Docker containers - no local DB setup needed!
+go test -tags=integration -v ./persistence/integration_test -run SQLite
+```
+
+Docker-backed integration tests for PostgreSQL, MySQL and SQL Server:
+
+```bash
 cd persistence/integration_test
 .\run-integration-tests.ps1
 ```
 
-The integration tests automatically:
-- 🐳 Spin up PostgreSQL, MySQL, and SQL Server containers
-- 🔍 Test all CRUD operations
-- 🧹 Clean up everything when done
+Additional notes for the integration suite are documented in [INTEGRATION_TESTS.md](./integration_test/INTEGRATION_TESTS.md).
 
-## 📁 Package Structure
+## Related Packages
 
-```
-persistence/
-├── dataaccess/           # Core CRUD operations
-├── dialectors/           # Database drivers
-├── ioc/                  # Dependency injection modules
-├── integration_test/     # Real database testing
-└── README.md            # You are here! 👋
-```
-
-## 🔄 Migration Guide
-
-Coming from the old `orm_base` package? Here's what changed:
-
-- ✅ **Same API**: Your existing code works unchanged
-- ✅ **Better Organization**: Cleaner package structure
-- ✅ **New Convenience Functions**: `ConfigureDatabaseModule()` for easier setup
-- ✅ **Enhanced Testing**: Docker-based integration tests
-
-## 🤝 Contributing
-
-We love contributions! Here's how to get started:
-
-1. **Fork & Clone**: Get the code locally
-2. **Test**: `go test ./...` (unit) and `.\run-integration-tests.ps1` (integration)
-3. **Add**: Your awesome feature or fix
-4. **Test Again**: Make sure everything still works
-5. **PR**: Submit your changes!
-
-## 📚 Examples in the Wild
-
-Check out how this package is used in the codebase:
-
-- **Server Setup**: `server/facades/singlepageapp_facade.go`
-- **Integration Tests**: `persistence/integration_test/`
-- **Module Configuration**: `persistence/ioc/`
-
----
-
-**Ready to simplify your database code?** Just add one module and start querying! 🚀
-
-*Built with ❤️ for the Go community*</content>
-<parameter name="filePath">d:\go-infrastructure\persistence\README.md
+- `persistence/dataaccess`: typed CRUD helpers
+- `persistence/ioc`: DI modules and convenience helpers
+- `persistence/dialectors`: per-engine dialector getters
+- `persistence/integration_test`: integration coverage and scripts

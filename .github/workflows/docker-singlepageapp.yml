@@ -1,7 +1,7 @@
 name: Docker SinglePageApp
 
 on:
-  create:
+  push:
     tags:
       - 'v*'
 
@@ -25,8 +25,6 @@ jobs:
         with:
           images: janmbaco/singlepageapp
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
@@ -35,6 +33,6 @@ jobs:
         with:
           context: .
           file: ./server/facades/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

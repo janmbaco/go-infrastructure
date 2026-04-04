@@ -11,6 +11,7 @@ Esta carpeta contiene tests de integración que verifican el funcionamiento del 
 
 Los tests de integración cubren las siguientes bases de datos:
 
+- **SQLite** (sin Docker, usando un fichero temporal por test)
 - **PostgreSQL 15**
 - **MySQL 8.0**
 - **SQL Server 2022**
@@ -43,7 +44,13 @@ Esperar a que las bases de datos estén listas, luego ejecutar:
 
 ```bash
 # Desde la raíz del proyecto
-go test -tags=integration -v ./persistence/integration_test -run TestDataAccessIntegration
+go test -tags=integration -v ./persistence/integration_test
+```
+
+Si solo quieres validar SQLite:
+
+```bash
+go test -tags=integration -v ./persistence/integration_test -run SQLite
 ```
 
 ## Configuración de Variables de Entorno
@@ -134,6 +141,7 @@ docker-compose -f docker-compose.test.yml down -v
 - Asegúrate de que no haya otros procesos usando los puertos 5432, 3306, 1433
 - Verifica que las credenciales en `docker-compose.test.yml` coincidan con las variables de entorno
 - Revisa los logs detallados: `go test -tags=integration -v ./persistence/integration_test`
+- Si quieres aislar los tests que no dependen de Docker, ejecuta: `go test -tags=integration -v ./persistence/integration_test -run SQLite`
 
 ### Performance
 - Los tests pueden tomar varios minutos en la primera ejecución debido a la descarga de imágenes Docker

@@ -3,6 +3,7 @@ package server_test
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -35,13 +36,13 @@ type testConfig struct {
 }
 
 const (
-	testConfigFile = "listener_test_config.json"
-	firstAddress   = ":18080"
-	secondAddress  = ":18090"
+	firstAddress  = ":18080"
+	secondAddress = ":18090"
 )
 
-func (lt *ListenerTests) setup(_ *testing.T) { //nolint:unparam // testing.T parameter kept for consistency with test method signatures
-	lt.configFilePath = testConfigFile
+func (lt *ListenerTests) setup(t *testing.T) {
+	t.Helper()
+	lt.configFilePath = filepath.Join(t.TempDir(), "listener_test_config.json")
 
 	// Setup IoC container
 	container := dependencyinjection.NewBuilder().

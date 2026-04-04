@@ -64,7 +64,7 @@ function Test-DatabaseConnection {
         try {
             # Intentar ejecutar el programa de test de conexión
             $env:CGO_ENABLED = 0
-            $testResult = & go run ../../test-db-connection.go $Engine $HostName $Port $User $Password $Database 2>$null
+            $testResult = & go run ./cmd/testdbconnection $Engine $HostName $Port $User $Password $Database 2>$null
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "✅ $ServiceName database connection successful!" -ForegroundColor Green
@@ -171,7 +171,7 @@ try {
     $env:CGO_ENABLED = 0
     Push-Location ../..
     try {
-        go test -tags=integration -v ./persistence/integration_test -run TestDataAccessIntegration
+        go test -tags=integration -v ./persistence/integration_test
     }
     finally {
         Pop-Location

@@ -11,7 +11,7 @@ import (
 
 func main() {
 	if len(os.Args) != 7 {
-		fmt.Println("Usage: go run test-db-connection.go <engine> <host> <port> <user> <password> <dbname>")
+		fmt.Println("Usage: go run ./cmd/testdbconnection <engine> <host> <port> <user> <password> <dbname>")
 		os.Exit(1)
 	}
 
@@ -53,7 +53,7 @@ func main() {
 	case persistence.SQLServer:
 		dialectorGetter = dialectors.NewSqlServerDialectorGetter()
 	default:
-		fmt.Printf("Unsupported database engine\n")
+		fmt.Println("Unsupported database engine")
 		os.Exit(1)
 	}
 

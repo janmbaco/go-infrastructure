@@ -224,13 +224,25 @@ publisher.Publish(UserCreatedEvent{UserID: "123", Email: "user@example.com"})
 HTTP/HTTPS server with SPA support and graceful shutdown.
 
 ```go
-listener := server.NewListenerBuilder().
-    SetPort(":8080").
-    SetTLSConfig(tlsConfig).
-    SetHandler(myHandler).
-    Build()
+configHandler := cfgresolver.GetFileConfigHandler(resolver, "server.json", &Config{
+    Address: ":8080",
+})
 
-if err := listener.ListenAndServe(); err != nil {
+listener, err := serverResolver.GetListenerBuilder(resolver, configHandler).
+    SetBootstrapper(func(config interface{}, serverSetter *server.ServerSetter) error {
+        cfg := config.(*Config)
+        serverSetter.Name = "http-api"
+        serverSetter.Addr = cfg.Address
+        serverSetter.Handler = myHandler
+        serverSetter.TLSConfig = tlsConfig
+        return nil
+    }).
+    GetListener()
+if err != nil {
+    log.Fatal(err)
+}
+
+if err := <-listener.Start(); err != nil {
     log.Fatal(err)
 }
 ```
@@ -243,12 +255,19 @@ if err := listener.ListenAndServe(); err != nil {
 Type-safe database access with GORM.
 
 ```go
-db := persistence.NewDB(dbInfo, errorCatcher)
-dataAccess := dataaccess.NewDataAccess[User](db)
+container := dependencyinjection.NewBuilder().
+    AddModule(persistenceioc.ConfigureDatabaseModule(
+        "localhost", "5432", "myuser", "mypass", "myapp", persistence.Postgres,
+    )).
+    MustBuild()
 
-users, err := dataAccess.SelectRows(&User{Active: true})
-err = dataAccess.InsertRow(&User{Name: "John"})
-err = dataAccess.UpdateRow(&User{ID: 1}, map[string]interface{}{"Name": "Jane"})
+resolver := container.Resolver()
+db := resolver.Type(new(*gorm.DB), nil).(*gorm.DB)
+dataAccess := dataaccess.NewTypedDataAccess[User](db)
+
+users, err := dataaccess.SelectRows(dataAccess, &User{Active: true})
+err = dataaccess.InsertRow(dataAccess, &User{Name: "John"})
+err = dataaccess.UpdateRow(dataAccess, &User{ID: 1}, &User{Name: "Jane"})
 ```
 
 **Features:** Typed operations, multiple DB backends, preloading, associations  
@@ -380,4 +399,3 @@ This project is licensed under the **Apache License 2.0** – see the [LICENSE](
 ---
 
 **Made with Go** | **Star us on GitHub** | **[Become a Sponsor](https://github.com/sponsors/janmbaco)**
-

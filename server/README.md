@@ -2,18 +2,16 @@
 
 `github.com/janmbaco/go-infrastructure/v2/server`
 
-Production-ready HTTP/HTTPS server with graceful shutdown, configuration integration, and single-page application support.
+The `server` package provides config-driven listeners for HTTP and gRPC servers, plus a lightweight single-page application handler.
 
-The server module provides:
+## What It Includes
 
-- Fluent `ListenerBuilder` for server configuration
-- HTTP/HTTPS support with TLS
-- Single-page application (SPA) handler with client-side routing
-- Graceful shutdown with connection draining
-- Dynamic configuration with live reload
-- DI module to inject configured servers across your app
-
----
+- `ListenerBuilder` to wire listeners from configuration
+- `Listener` with `Start()` and `Stop()`
+- HTTP and gRPC bootstrapping through `ServerSetter`
+- Config validation and application hooks for live reload scenarios
+- `NewSinglePageApp` and `facades.SinglePageAppStart`
+- DI integration through `server/ioc`
 
 ## Install
 
@@ -21,587 +19,200 @@ The server module provides:
 go get github.com/janmbaco/go-infrastructure/v2/server
 ```
 
----
-
-## Quick Start
-
-### Simple HTTP server
-
-```go
-package main
-
-import (
-    "net/http"
-    "github.com/janmbaco/go-infrastructure/v2/server"
-)
-
-func main() {
-    handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Write([]byte("Hello, World!"))
-    })
-
-    listener := server.NewListenerBuilder().
-        SetPort(":8080").
-        SetHandler(handler).
-        Build()
-
-    if err := listener.ListenAndServe(); err != nil {
-        panic(err)
-    }
-}
-```
-
----
-
 ## Core API
-
-### ListenerBuilder
-
-The `ListenerBuilder` interface provides a fluent API for configuring servers:
 
 ```go
 type ListenerBuilder interface {
-    SetPort(port string) ListenerBuilder
-    SetHandler(handler http.Handler) ListenerBuilder
-    SetTLSConfig(config *tls.Config) ListenerBuilder
-    SetServerSetter(setter ServerSetter) ListenerBuilder
-    Build() Listener
+    SetBootstrapper(BootstrapperFunc) ListenerBuilder
+    SetGrpcDefinitions(GrpcDefinitionsFunc) ListenerBuilder
+    SetConfigValidatorFunc(ConfigValidatorFunc) ListenerBuilder
+    SetConfigApplicatorFunc(ConfigApplicatorFunc) ListenerBuilder
+    GetListener() (Listener, error)
 }
-```
 
-Create a builder:
-
-```go
-builder := server.NewListenerBuilder()
-```
-
-Configure and build:
-
-```go
-listener := builder.
-    SetPort(":8080").
-    SetHandler(handler).
-    Build()
-```
-
-### Listener
-
-The `Listener` interface manages server lifecycle:
-
-```go
 type Listener interface {
-    ListenAndServe() error
-    Shutdown(ctx context.Context) error
-    Port() string
-    IsHTTPS() bool
+    Start() chan ListenerError
+    Stop()
 }
 ```
 
-* **ListenAndServe** – starts the server (blocks until shutdown or error)
-* **Shutdown** – gracefully shuts down with context timeout
-* **Port** – returns the configured port
-* **IsHTTPS** – returns `true` if TLS is configured
-
----
-
-## HTTPS support
-
-Add TLS configuration to enable HTTPS:
+The bootstrapper receives the current config and fills a `ServerSetter`:
 
 ```go
-listener := server.NewListenerBuilder().
-    SetPort(":8443").
-    SetHandler(handler).
-    SetTLSConfig(&tls.Config{
-        Certificates: []tls.Certificate{cert},
-        MinVersion:   tls.VersionTLS12,
-    }).
-    Build()
-
-if err := listener.ListenAndServe(); err != nil {
-    panic(err)
+type ServerSetter struct {
+    Handler      http.Handler
+    TLSConfig    *tls.Config
+    TLSNextProto map[string]func(*http.Server, *tls.Conn, http.Handler)
+    Name         string
+    Addr         string
+    ServerType   ServerType
 }
 ```
 
-Load certificates:
+Available server types:
 
 ```go
-cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
-if err != nil {
-    panic(err)
-}
-```
-
----
-
-## Single-page application (SPA) support
-
-The server module includes built-in support for SPAs (React, Vue, Angular, etc.).
-
-### Quick start with `facades.SinglePageAppStart`
-
-```go
-package main
-
-import (
-    "flag"
-    "github.com/janmbaco/go-infrastructure/v2/server/facades"
+const (
+    HTTPServer ServerType = iota
+    GRpcSever
 )
-
-func main() {
-    port := flag.String("port", ":8080", "server port")
-    static := flag.String("static", "./dist", "static files directory")
-    index := flag.String("index", "index.html", "index file")
-    flag.Parse()
-
-    facades.SinglePageAppStart(*port, *static, *index)
-}
 ```
 
-This helper function:
+`GRpcSever` is the current exported gRPC constant name in the package.
 
-* Serves static assets (JS, CSS, images)
-* Returns `index.html` for all unmatched routes (enables client-side routing)
-* Handles 404s gracefully
-* Prevents path traversal attacks
-
-### Using the SPA handler directly
-
-For more control:
-
-```go
-spaHandler := server.NewSinglePageApp("./dist", "index.html")
-
-listener := server.NewListenerBuilder().
-    SetPort(":8080").
-    SetHandler(spaHandler).
-    Build()
-
-listener.ListenAndServe()
-```
-
-The `NewSinglePageApp` function returns an `http.Handler` that:
-
-```go
-// Static file serving with fallback to index.html
-// Handles:
-// - /assets/app.js → serves from staticPath
-// - /app/route → returns index.html (client-side routing)
-// - / → returns index.html
-```
-
----
-
-## Graceful shutdown
-
-Handle OS signals for clean shutdown:
+## HTTP Quick Start
 
 ```go
 package main
 
 import (
-    "context"
-    "log"
     "net/http"
     "os"
     "os/signal"
     "syscall"
-    "time"
 
+    configioc "github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc/resolver"
+    "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
+    serverioc "github.com/janmbaco/go-infrastructure/v2/server/ioc"
+    serverresolver "github.com/janmbaco/go-infrastructure/v2/server/ioc/resolver"
     "github.com/janmbaco/go-infrastructure/v2/server"
 )
 
-func main() {
-    listener := server.NewListenerBuilder().
-        SetPort(":8080").
-        SetHandler(myHandler()).
-        Build()
-
-    // Start server in goroutine
-    go func() {
-        if err := listener.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-            log.Fatal(err)
-        }
-    }()
-
-    // Wait for interrupt signal
-    quit := make(chan os.Signal, 1)
-    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-    <-quit
-
-    log.Println("Shutting down server...")
-
-    // Graceful shutdown with timeout
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
-
-    if err := listener.Shutdown(ctx); err != nil {
-        log.Fatal("Server forced to shutdown:", err)
-    }
-
-    log.Println("Server exited")
-}
-
-func myHandler() http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Write([]byte("Hello!"))
-    })
-}
-```
-
----
-
-## Configuration integration
-
-Integrate with the `configuration` module for dynamic updates:
-
-```go
-package main
-
-import (
-    "net/http"
-
-    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
-    "github.com/janmbaco/go-infrastructure/v2/server/ioc"
-    "github.com/janmbaco/go-infrastructure/v2/server/ioc/resolver"
-    configioc "github.com/janmbaco/go-infrastructure/v2/configuration/fileconfig/ioc"
-)
-
 type Config struct {
-    Port string `json:"port"`
-    TLS  struct {
-        Enabled  bool   `json:"enabled"`
-        CertFile string `json:"certFile"`
-        KeyFile  string `json:"keyFile"`
-    } `json:"tls"`
+    Address string `json:"address"`
 }
 
 func main() {
-    container := di.NewBuilder().
-        AddModule(configioc.NewConfigurationModule()).
-        AddModule(ioc.NewServerModule()).
-        Register(func(r di.Register) {
-            r.AsSingleton(new(http.Handler), func() http.Handler {
-                return myAppHandler()
-            }, nil)
-        }).
+    container := dependencyinjection.NewBuilder().
+        AddModules(serverioc.ConfigureServerModules()...).
         MustBuild()
 
-    builder := resolver.GetListenerBuilder(container.Resolver())
-    listener := builder.Build()
+    resolver := container.Resolver()
+    configHandler := configioc.GetFileConfigHandler(resolver, "server.json", &Config{
+        Address: ":8080",
+    })
 
-    if err := listener.ListenAndServe(); err != nil {
+    listener, err := serverresolver.GetListenerBuilder(resolver, configHandler).
+        SetBootstrapper(func(config interface{}, serverSetter *server.ServerSetter) error {
+            cfg := config.(*Config)
+
+            mux := http.NewServeMux()
+            mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+                _, _ = w.Write([]byte("ok"))
+            })
+
+            serverSetter.Name = "http-api"
+            serverSetter.Addr = cfg.Address
+            serverSetter.Handler = mux
+            return nil
+        }).
+        GetListener()
+    if err != nil {
         panic(err)
     }
-}
 
-func myAppHandler() http.Handler {
-    mux := http.NewServeMux()
-    mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-        w.Write([]byte(`{"status":"ok"}`))
-    })
-    return mux
-}
-```
+    finish := listener.Start()
 
-Configuration file format (`config.json`):
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-```json
-{
-  "server": {
-    "port": ":8080",
-    "tls": {
-      "enabled": true,
-      "certFile": "/path/to/cert.pem",
-      "keyFile": "/path/to/key.pem"
-    }
-  }
-}
-```
-
----
-
-## DI integration (`server/ioc`)
-
-The `server/ioc` package provides a DI module for the container.
-
-### ServerModule
-
-```go
-type ServerModule struct{}
-
-func NewServerModule() *ServerModule
-func (m *ServerModule) RegisterServices(register dependencyinjection.Register) error
-```
-
-`ServerModule` implements `dependencyinjection.Module` and registers server components.
-
-### Using with `dependencyinjection`
-
-```go
-import (
-    di "github.com/janmbaco/go-infrastructure/v2/dependencyinjection"
-    serverIoc "github.com/janmbaco/go-infrastructure/v2/server/ioc"
-    serverResolver "github.com/janmbaco/go-infrastructure/v2/server/ioc/resolver"
-)
-
-func main() {
-    container := di.NewBuilder().
-        AddModule(serverIoc.NewServerModule()).
-        MustBuild()
-
-    builder := serverResolver.GetListenerBuilder(container.Resolver())
-    listener := builder.Build()
-
-    listener.ListenAndServe()
-}
-```
-
----
-
-## Error handling
-
-The server module defines specific error types:
-
-### ListenerBuilderError
-
-Configuration errors during builder setup:
-
-```go
-type ListenerBuilderError interface {
-    error
-    GetErrorType() ListenerBuilderErrorType
-}
-
-type ListenerBuilderErrorType uint8
-
-const (
-    BuilderUnexpected ListenerBuilderErrorType = iota
-    PortNotSet
-    HandlerNotSet
-)
-```
-
-* `BuilderUnexpected` – internal builder error
-* `PortNotSet` – `SetPort` was not called
-* `HandlerNotSet` – `SetHandler` was not called
-
-### ListenerError
-
-Runtime errors during server operation:
-
-```go
-type ListenerError interface {
-    error
-    GetErrorType() ListenerErrorType
-}
-
-type ListenerErrorType uint8
-
-const (
-    ListenerUnexpected ListenerErrorType = iota
-    BindError
-    ListenError
-    ServeError
-)
-```
-
-* `ListenerUnexpected` – internal listener error
-* `BindError` – failed to bind to port
-* `ListenError` – failed to start listening
-* `ServeError` – error during request handling
-
-Example:
-
-```go
-if err := listener.ListenAndServe(); err != nil {
-    if lErr, ok := err.(server.ListenerError); ok {
-        switch lErr.GetErrorType() {
-        case server.BindError:
-            logger.Error("port already in use:", lErr)
-        case server.ServeError:
-            logger.Error("serving error:", lErr)
-        default:
-            logger.Error("listener error:", lErr)
+    select {
+    case err := <-finish:
+        if err != nil {
+            panic(err)
+        }
+    case <-quit:
+        listener.Stop()
+        if err := <-finish; err != nil {
+            panic(err)
         }
     }
 }
 ```
 
----
+## gRPC Listener
 
-## Examples
-
-### Complete SPA application
-
-See the working example: [`cmd/singlepageapp`](../cmd/singlepageapp)
-
-Features demonstrated:
-
-* Static file serving
-* SPA routing support
-* Configuration management
-* Docker deployment
-* Graceful shutdown
-
-Run it:
-
-```bash
-go run ./cmd/singlepageapp -port :8080 -static ./dist -index index.html
-```
-
-### Docker deployment
-
-Build and run in container:
-
-```bash
-# Build image
-docker build -f server/facades/Dockerfile -t myapp .
-
-# Run container
-docker run -p 8080:8080 -v ./config.json:/app/config.json myapp
-```
-
----
-
-## Security best practices
-
-### Always use HTTPS in production
+For gRPC, set `ServerType` to `server.GRpcSever` and register protobuf services with `SetGrpcDefinitions`.
 
 ```go
-SetTLSConfig(&tls.Config{
-    MinVersion: tls.VersionTLS12,
-    CipherSuites: []uint16{
-        tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-        tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-    },
-})
+listener, err := serverresolver.GetListenerBuilder(resolver, configHandler).
+    SetBootstrapper(func(config interface{}, serverSetter *server.ServerSetter) error {
+        cfg := config.(*Config)
+        serverSetter.Name = "grpc-api"
+        serverSetter.Addr = cfg.Address
+        serverSetter.ServerType = server.GRpcSever
+        return nil
+    }).
+    SetGrpcDefinitions(func(grpcServer *grpc.Server) {
+        pb.RegisterGreeterServer(grpcServer, greeter)
+    }).
+    GetListener()
 ```
 
-### Implement request timeouts
+If `ServerType` is `server.GRpcSever` and no gRPC definitions are provided, `GetListener()` returns `NilGrpcDefinitionsError`.
+
+## Live Configuration Hooks
+
+`ListenerBuilder` exposes two optional hooks for config updates:
+
+- `SetConfigValidatorFunc`: decide whether a new config should be applied.
+- `SetConfigApplicatorFunc`: apply config changes without forcing a restart when possible.
+
+If no applicator is provided, or if `ConfigApplication.NeedsRestart` is set to `true`, the listener restarts after config changes.
 
 ```go
-srv := &http.Server{
-    ReadTimeout:  15 * time.Second,
-    WriteTimeout: 15 * time.Second,
-    IdleTimeout:  60 * time.Second,
-}
+listener, err := serverresolver.GetListenerBuilder(resolver, configHandler).
+    SetBootstrapper(bootstrapper).
+    SetConfigValidatorFunc(func(config interface{}) (bool, error) {
+        cfg := config.(*Config)
+        return cfg.Address != "", nil
+    }).
+    SetConfigApplicatorFunc(func(config interface{}, app *server.ConfigApplication) error {
+        *app.NeedsRestart = true
+        return nil
+    }).
+    GetListener()
 ```
 
-### Use secure headers
+## SPA Support
+
+Serve static assets with SPA fallback:
 
 ```go
-w.Header().Set("X-Content-Type-Options", "nosniff")
-w.Header().Set("X-Frame-Options", "DENY")
-w.Header().Set("Content-Security-Policy", "default-src 'self'")
+handler := server.NewSinglePageApp("./dist", "index.html")
 ```
 
----
-
-## Health checks
-
-### Basic health check
+For the opinionated executable-style bootstrap, use:
 
 ```go
-mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusOK)
-    w.Write([]byte("OK"))
-})
+facades.SinglePageAppStart(":8080", "./dist", "index.html")
 ```
 
-### Readiness check
+The facade creates a config file next to the executable, wires the required modules and starts the listener.
+
+## Error Types
+
+Builder errors:
 
 ```go
-mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
-    // Check dependencies (DB, cache, etc.)
-    if allReady {
-        w.WriteHeader(http.StatusOK)
-    } else {
-        w.WriteHeader(http.StatusServiceUnavailable)
-    }
-})
+const (
+    UnexpectedBuilderError ListenerBuilderErrorType = iota
+    NilBootstraperError
+    NilGrpcDefinitionsError
+)
 ```
 
----
-
-## Testing
-
-Example test for SPA handler:
+Runtime listener errors:
 
 ```go
-func TestSinglePageApp_ServeHTTP(t *testing.T) {
-    handler := server.NewSinglePageApp("./testdata", "index.html")
-    
-    tests := []struct {
-        name           string
-        path           string
-        expectedStatus int
-    }{
-        {"root path", "/", http.StatusOK},
-        {"static file", "/app.js", http.StatusOK},
-        {"SPA route", "/app/dashboard", http.StatusOK},
-    }
-    
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            req := httptest.NewRequest("GET", tt.path, nil)
-            rec := httptest.NewRecorder()
-            
-            handler.ServeHTTP(rec, req)
-            
-            assert.Equal(t, tt.expectedStatus, rec.Code)
-        })
-    }
-}
+const (
+    UnexpectedError ListenerErrorType = iota
+    AddressNotConfigured
+)
 ```
 
----
+## Related Packages
 
-## Troubleshooting
-
-### Port already in use
-
-```
-Error: bind: address already in use
-```
-
-Check for processes using the port:
-
-```bash
-# Linux/Mac
-lsof -i :8080
-
-# Windows
-netstat -ano | findstr :8080
-```
-
-### TLS certificate errors
-
-```
-Error: tls: failed to find any PEM data
-```
-
-Verify certificate files exist and are valid PEM format:
-
-```bash
-openssl x509 -in cert.pem -text -noout
-```
-
-### SPA routes return 404
-
-Ensure you're using `NewSinglePageApp` handler, not a basic file server.
-
----
-
-## Summary
-
-The `server` module gives you:
-
-* A **fluent builder** for configuring HTTP/HTTPS servers
-* Built-in **SPA support** with client-side routing
-* **Graceful shutdown** with context-based timeout
-* **Configuration integration** via the `configuration` module
-* **DI module** to wire servers into your application
-* **Type-safe error handling** with specific error types
-
-Use it to build production-ready web services with minimal boilerplate and maximum flexibility.
+- `server/ioc`: DI module and convenience module set
+- `server/ioc/resolver`: helper to resolve `ListenerBuilder`
+- `server/facades`: executable-style entry points

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ type TestUser struct {
 	Name      string `gorm:"size:100;not null"`
 	Email     string `gorm:"size:100;unique;not null"`
 	Age       int    `gorm:"not null"`
-	Active    bool   `gorm:"default:true"`
+	Active    bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -73,6 +74,15 @@ func getDatabaseConfigs() []DatabaseConfig {
 			DBName:   getEnvOrDefault("SQLSERVER_DB", "master"),
 			Engine:   persistence.SQLServer,
 		},
+	}
+}
+
+func sqliteDatabaseConfig(t *testing.T) DatabaseConfig {
+	t.Helper()
+
+	return DatabaseConfig{
+		DBName: filepath.Join(t.TempDir(), "integration.sqlite"),
+		Engine: persistence.Sqlite,
 	}
 }
 
@@ -138,6 +148,14 @@ func TestDataAccessIntegration(t *testing.T) {
 	}
 }
 
+func TestDataAccessIntegrationSQLite(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	testDatabaseOperations(t, sqliteDatabaseConfig(t))
+}
+
 func testDatabaseOperations(t *testing.T, config DatabaseConfig) {
 	// Wait for database to be ready
 	err := waitForDatabase(config, 60*time.Second)
@@ -155,14 +173,33 @@ func testDatabaseOperations(t *testing.T, config DatabaseConfig) {
 	err = db.AutoMigrate(&TestUser{}, &TestProfile{})
 	require.NoError(t, err, "Should migrate tables")
 
-	// Clean up tables before test
-	db.Exec("DELETE FROM test_profiles")
-	db.Exec("DELETE FROM test_users")
+	resetTestTables(t, db)
 
 	// Test with generic functions
 	testCRUDOperations(t, db)
 	testAssociations(t, db)
 	testErrorHandling(t, db)
+}
+
+func resetTestTables(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	require.NoError(t, db.Unscoped().Delete(&TestProfile{}, "1=1").Error, "Should clean test_profiles")
+	require.NoError(t, db.Unscoped().Delete(&TestUser{}, "1=1").Error, "Should clean test_users")
+}
+
+func activeCondition(engine persistence.DbEngine) string {
+	if engine == persistence.Postgres {
+		return "active = true"
+	}
+	return "active = 1"
+}
+
+func oldestActiveUserExpression(engine persistence.DbEngine) string {
+	condition := activeCondition(engine)
+	if engine == persistence.SQLServer {
+		return fmt.Sprintf("(SELECT TOP 1 name FROM test_users WHERE %s ORDER BY age DESC) as oldest_user", condition)
+	}
+	return fmt.Sprintf("(SELECT name FROM test_users WHERE %s ORDER BY age DESC LIMIT 1) as oldest_user", condition)
 }
 
 func testCRUDOperations(t *testing.T, db *gorm.DB) {
@@ -305,6 +342,14 @@ func TestAdvancedQueriesWithDBMethod(t *testing.T) {
 	}
 }
 
+func TestAdvancedQueriesWithDBMethodSQLite(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration tests in short mode")
+	}
+
+	testAdvancedQueries(t, sqliteDatabaseConfig(t))
+}
+
 func testAdvancedQueries(t *testing.T, config DatabaseConfig) {
 	// Wait for database to be ready
 	err := waitForDatabase(config, 60*time.Second)
@@ -322,13 +367,13 @@ func testAdvancedQueries(t *testing.T, config DatabaseConfig) {
 	err = db.AutoMigrate(&TestUser{}, &TestProfile{})
 	require.NoError(t, err, "Should migrate tables")
 
-	// Clean up any existing data
-	db.Unscoped().Delete(&TestUser{}, "1=1")
-	db.Unscoped().Delete(&TestProfile{}, "1=1")
+	resetTestTables(t, db)
 
 	dataAccess := dataaccess.NewTypedDataAccess[TestUser](db)
 
 	t.Run("RawSQLQueries", func(t *testing.T) {
+		resetTestTables(t, db)
+
 		// Insert test data
 		users := []*TestUser{
 			{Name: "Alice", Email: "alice@test.com", Age: 25, Active: true},
@@ -345,6 +390,15 @@ func testAdvancedQueries(t *testing.T, config DatabaseConfig) {
 		// Test raw SQL query using DB() method
 		gormDB := dataAccess.DB().(*gorm.DB)
 
+		rawQuery := fmt.Sprintf(`
+			SELECT
+				COUNT(*) as total_users,
+				SUM(CASE WHEN %s THEN 1 ELSE 0 END) as active_users,
+				AVG(age) as avg_age,
+				%s
+			FROM test_users
+		`, activeCondition(config.Engine), oldestActiveUserExpression(config.Engine))
+
 		var stats struct {
 			TotalUsers  int
 			ActiveUsers int
@@ -352,14 +406,7 @@ func testAdvancedQueries(t *testing.T, config DatabaseConfig) {
 			OldestUser  string
 		}
 
-		err := gormDB.Raw(`
-			SELECT
-				COUNT(*) as total_users,
-				COUNT(CASE WHEN active = true THEN 1 END) as active_users,
-				AVG(age) as avg_age,
-				(SELECT name FROM test_users WHERE active = true ORDER BY age DESC LIMIT 1) as oldest_user
-			FROM test_users
-		`).Scan(&stats).Error
+		err := gormDB.Raw(rawQuery).Scan(&stats).Error
 
 		assert.NoError(t, err, "Should execute raw SQL query")
 		assert.Equal(t, 4, stats.TotalUsers, "Should count all users")
@@ -369,6 +416,8 @@ func testAdvancedQueries(t *testing.T, config DatabaseConfig) {
 	})
 
 	t.Run("ComplexJoinsAndAggregations", func(t *testing.T) {
+		resetTestTables(t, db)
+
 		// Create users with profiles
 		userDataAccess := dataaccess.NewTypedDataAccess[TestUser](db)
 		profileDataAccess := dataaccess.NewTypedDataAccess[TestProfile](db)
@@ -399,12 +448,12 @@ func testAdvancedQueries(t *testing.T, config DatabaseConfig) {
 			UserName   string
 			UserEmail  string
 			ProfileBio string
-			HasProfile bool
+			HasProfile int
 		}
 
 		err := gormDB.
 			Table("test_users").
-			Select("test_users.name as user_name, test_users.email as user_email, test_profiles.bio as profile_bio, CASE WHEN test_profiles.id IS NOT NULL THEN true ELSE false END as has_profile").
+			Select("test_users.name as user_name, test_users.email as user_email, test_profiles.bio as profile_bio, CASE WHEN test_profiles.id IS NOT NULL THEN 1 ELSE 0 END as has_profile").
 			Joins("LEFT JOIN test_profiles ON test_users.id = test_profiles.user_id").
 			Where("test_users.active = ?", true).
 			Order("test_users.name").
@@ -412,13 +461,15 @@ func testAdvancedQueries(t *testing.T, config DatabaseConfig) {
 
 		assert.NoError(t, err, "Should execute complex join query")
 		assert.Len(t, results, 2, "Should return both users")
-		assert.True(t, results[0].HasProfile, "First user should have profile")
-		assert.True(t, results[1].HasProfile, "Second user should have profile")
+		assert.Equal(t, 1, results[0].HasProfile, "First user should have profile")
+		assert.Equal(t, 1, results[1].HasProfile, "Second user should have profile")
 		assert.Equal(t, "Jane", results[0].UserName, "Should order by name")
 		assert.Equal(t, "John", results[1].UserName, "Should order by name")
 	})
 
 	t.Run("AdvancedFilteringAndGrouping", func(t *testing.T) {
+		resetTestTables(t, db)
+
 		// Insert more test data for grouping
 		moreUsers := []*TestUser{
 			{Name: "Eve", Email: "eve@test.com", Age: 22, Active: true},
@@ -465,10 +516,9 @@ func testAdvancedQueries(t *testing.T, config DatabaseConfig) {
 			totalUsers += group.Count
 			assert.True(t, group.AvgAge > 0, "Should have valid average age")
 		}
-		assert.Equal(t, 6, totalUsers, "Should account for all users")
+		assert.Equal(t, 4, totalUsers, "Should account for all users")
 	})
 
 	// Clean up
-	db.Unscoped().Delete(&TestUser{}, "1=1")
-	db.Unscoped().Delete(&TestProfile{}, "1=1")
+	resetTestTables(t, db)
 }
