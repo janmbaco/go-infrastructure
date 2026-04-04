@@ -32,7 +32,6 @@ updates:
       - "janmbaco"
     labels:
       - "dependencies"
-      - "github-actions"
     commit-message:
       prefix: "ci"
       include: "scope"
