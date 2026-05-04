@@ -3,7 +3,7 @@ module github.com/janmbaco/go-infrastructure/v2
 go 1.25.0
 
 require (
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.0
 	github.com/janmbaco/copier v1.0.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.80.0
