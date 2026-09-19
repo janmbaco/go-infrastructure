@@ -183,3 +183,13 @@ Most applications using `fileconfig` do not need to construct `Period` directly.
 - `configuration/events`: config change event types
 - `disk`: file change notifications
 - `eventsmanager`: event publication
+
+## Validated snapshots without a watcher
+
+`ReadSnapshot[T](path, validate)` reads an existing JSON file once, rejects unknown fields, trailing documents and files larger than `MaxSnapshotBytes`, and validates the decoded value. It returns a new value for every read, preserves wrapped errors and never creates, rewrites or watches the file. A validator is required.
+
+```go
+settings, err := configuration.ReadSnapshot("runtime.json", RuntimeSettings.Validate)
+```
+
+The source file can remain editable: an application can read it again when starting its next session. Each running session owns the snapshot it captured. This complements `fileconfig` when automatic reload, subscriptions and rollback are unnecessary; it does not freeze the source file. This reader is for operational configuration, not cryptographic canonicalization or signed-document admission.
