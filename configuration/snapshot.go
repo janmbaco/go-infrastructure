@@ -21,10 +21,13 @@ func ReadSnapshot[T any](path string, validate func(T) error) (T, error) {
 	if err != nil {
 		return empty, fmt.Errorf("open configuration snapshot: %w", err)
 	}
-	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, MaxSnapshotBytes+1))
+	closeErr := file.Close()
 	if err != nil {
 		return empty, fmt.Errorf("read configuration snapshot: %w", err)
+	}
+	if closeErr != nil {
+		return empty, fmt.Errorf("close configuration snapshot: %w", closeErr)
 	}
 	if len(data) > MaxSnapshotBytes {
 		return empty, fmt.Errorf("configuration snapshot exceeds %d bytes", MaxSnapshotBytes)

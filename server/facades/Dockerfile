@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.27.1-alpine AS builder
 WORKDIR /src
 
 # Copy go.mod and go.sum from repo root to enable module download

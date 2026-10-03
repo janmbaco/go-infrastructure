@@ -1,7 +1,7 @@
 # Go Infrastructure
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/janmbaco/go-infrastructure/v2)](https://goreportcard.com/report/github.com/janmbaco/go-infrastructure/v2)
-[![Go Version](https://img.shields.io/badge/go-1.24+-blue.svg)](https://golang.org/dl/)
+[![Go Version](https://img.shields.io/badge/go-1.26+-blue.svg)](https://golang.org/dl/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-♥-ff69b4)](https://github.com/sponsors/janmbaco)
 
@@ -45,7 +45,7 @@ go get github.com/janmbaco/go-infrastructure/v2
 ```
 
 **Requirements:**
-- Go 1.24 or higher
+- Go 1.26 or higher (use a supported, patched toolchain)
 - Go modules enabled
 
 ---
@@ -369,7 +369,7 @@ Sponsors will be recognized here and in release notes.
 ## Project Stats
 
 - **Version:** v2.0.0+
-- **Go Version:** 1.24+
+- **Go Version:** 1.26+ (CI: 1.26.8 and 1.27.1)
 - **License:** Apache 2.0
 - **Test Coverage:** 80%+
 - **Actively Maintained:** Yes

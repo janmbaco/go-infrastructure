@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-03
+
+### Added
+
+- Publish `configuration.ReadSnapshot[T]`: independent, size-bounded JSON snapshots with required validation, strict fields and preserved error causes. Existing file-watcher APIs remain unchanged.
+
+### Security
+
+- Update gRPC to 1.83.2, fixing CVE-2026-84304 and the subsequent missing-authority-header panic advisory.
+- Update pgx to 5.9.2 and the Go networking, text and cryptography modules to patched versions.
+- Check vulnerabilities before creating releases, in addition to the existing CI scan.
+
+### Build requirements
+
+- Go 1.26 or newer is required by the patched cryptography dependency. CI tests Go 1.26.8 and 1.27.1; container builds use 1.27.1.
+
 ## [2.1.1] - 2025-12-04
 
 ### 📚 Added
