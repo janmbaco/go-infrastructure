@@ -64,8 +64,12 @@ func (lb *listenerBuilder) GetListener() (Listener, error) {
 	serverSetter := &ServerSetter{}
 
 	// Mute logs during validation to avoid duplicate output
+	config, err := readListenerConfig(lb.configHandler)
+	if err != nil {
+		return nil, lb.pipError(err)
+	}
 	lb.logger.Mute()
-	if err := lb.bootstrapperFunc(lb.configHandler.GetConfig(), serverSetter); err != nil {
+	if err := lb.bootstrapperFunc(config.value, serverSetter); err != nil {
 		lb.logger.Unmute()
 		return nil, lb.pipError(err)
 	}

@@ -1,18 +1,15 @@
 package server
 
 import (
-	"context"
 	"crypto/tls"
-	"net"
+	"fmt"
 	"net/http"
-	"reflect"
-	"time"
+	"sync"
 
 	"github.com/janmbaco/go-infrastructure/v2/configuration"
 	"github.com/janmbaco/go-infrastructure/v2/errors"
 	"github.com/janmbaco/go-infrastructure/v2/logs"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type (
@@ -55,19 +52,21 @@ type (
 		configHandler        configuration.ConfigHandler
 		logger               logs.Logger
 		errorCatcher         errors.ErrorCatcher
-		serverSetter         *ServerSetter
-		httpServer           *http.Server
-		grpcServer           *grpc.Server
 		bootstrapperFunc     BootstrapperFunc
 		grpcDefinitionsFunc  GrpcDefinitionsFunc
 		configValidatorFunc  ConfigValidatorFunc
 		configApplicatorFunc ConfigApplicatorFunc
-		start                chan bool
-		started              chan bool
-		stop                 chan bool
-		finish               chan ListenerError
-		isBusy               chan bool
-		stopped              bool
+		mu                   sync.Mutex
+		run                  *listenerRun
+		// Updated only by the serving coordinator after a successful bind.
+		setter ServerSetter
+	}
+
+	listenerRun struct {
+		ready   chan struct{}
+		changed chan struct{}
+		stop    chan struct{}
+		finish  chan ListenerError
 	}
 )
 
@@ -76,246 +75,220 @@ const (
 	GRpcSever
 )
 
-func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, errorCatcher errors.ErrorCatcher, bootstrapperFunc BootstrapperFunc, grpdDefinitionsFunc GrpcDefinitionsFunc, validationFunc ConfigValidatorFunc, applicationFunc ConfigApplicatorFunc) Listener {
-	listener := &listener{
+func newListener(configHandler configuration.ConfigHandler, logger logs.Logger, errorCatcher errors.ErrorCatcher, bootstrapperFunc BootstrapperFunc, grpcDefinitionsFunc GrpcDefinitionsFunc, validationFunc ConfigValidatorFunc, applicationFunc ConfigApplicatorFunc) Listener {
+	l := &listener{
 		configHandler:        configHandler,
 		logger:               logger,
 		errorCatcher:         errorCatcher,
-		serverSetter:         &ServerSetter{},
 		bootstrapperFunc:     bootstrapperFunc,
-		grpcDefinitionsFunc:  grpdDefinitionsFunc,
+		grpcDefinitionsFunc:  grpcDefinitionsFunc,
 		configValidatorFunc:  validationFunc,
 		configApplicatorFunc: applicationFunc,
-		start:                make(chan bool, 1),
-		started:              make(chan bool, 1),
-		stop:                 make(chan bool, 1),
-		finish:               make(chan ListenerError, 1),
-		isBusy:               make(chan bool, 1),
 	}
-	restoredConfig := listener.onRestoredConfig
-	modifiedConfig := listener.onModifiedConfig
-
-	configHandler.RestoredSubscribe(&restoredConfig)
-	configHandler.ModifiedSubscribe(&modifiedConfig)
-	return listener
+	changed := l.onModifiedConfig
+	configHandler.ModifiedSubscribe(&changed)
+	return l
 }
 
 func (l *listener) Start() chan ListenerError {
-	l.stopped = false
-	go l.startLoop()
-	l.start <- true
-	<-l.started
-	return l.finish
+	l.mu.Lock()
+	r := l.run
+	if r == nil {
+		r = &listenerRun{
+			ready:   make(chan struct{}),
+			changed: make(chan struct{}, 1),
+			stop:    make(chan struct{}),
+			finish:  make(chan ListenerError, 1),
+		}
+		l.run = r
+		go l.serve(r)
+	}
+	l.mu.Unlock()
+	<-r.ready
+	return r.finish
 }
 
 func (l *listener) Stop() {
-	l.isBusy <- true
-	l.logger.Infof("%v - Server Stop", l.serverSetter.Name)
-	_ = l.stopServer() //nolint:errcheck // server shutdown errors are not recoverable
-	l.stop <- true
-	<-l.isBusy
-}
-
-func (l *listener) startLoop() {
-	defer func() {
-		if r := recover(); r != nil {
-			l.handleRecover(r, true)
-		}
-	}()
-	for {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if r := l.run; r != nil {
 		select {
-		case <-l.start:
-			_ = l.errorCatcher.TryCatchError(func() error { //nolint:errcheck // errors are handled in the error callback
-				if err := l.bootstrapperFunc(l.configHandler.GetConfig(), l.serverSetter); err != nil {
-					return err
-				}
-				if err := l.initializeServer(); err != nil {
-					return err
-				}
-				l.logger.Infof("%v - Listen on %v", l.serverSetter.Name, l.serverSetter.Addr)
-
-				switch l.serverSetter.ServerType {
-				case HTTPServer:
-					select {
-					case l.started <- true:
-					default:
-					}
-					if l.serverSetter.TLSConfig != nil {
-						if err := l.httpServer.ListenAndServeTLS("", ""); err != nil {
-							return err
-						}
-					} else {
-						if err := l.httpServer.ListenAndServe(); err != nil {
-							return err
-						}
-					}
-				case GRpcSever:
-					select {
-					case l.started <- true:
-					default:
-					}
-					lis, err := net.Listen("tcp", l.serverSetter.Addr)
-					if err != nil {
-						return err
-					}
-					l.grpcDefinitionsFunc(l.grpcServer)
-					if err := l.grpcServer.Serve(lis); err != nil {
-						return err
-					}
-				}
-				return nil
-			}, func(err error) {
-				l.handleServerError(err)
-			})
-		case <-l.stop:
-			l.finish <- nil
-			l.stopped = true
-		}
-		if l.stopped {
-			break
+		case <-r.stop:
+		default:
+			close(r.stop)
 		}
 	}
 }
-func (l *listener) initializeServer() error {
-	if l.serverSetter.Addr == "" {
-		return newListenerError(AddressNotConfigured, "address not configured", nil)
-	}
-	switch l.serverSetter.ServerType {
-	case HTTPServer:
-		l.httpServer = &http.Server{
-			ErrorLog:          l.logger.GetErrorLogger(),
-			ReadHeaderTimeout: 10 * time.Second,
-		}
-		l.httpServer.Addr = l.serverSetter.Addr
-		if l.serverSetter.Handler != nil {
-			l.httpServer.Handler = l.serverSetter.Handler
-		}
-		l.httpServer.TLSConfig = l.serverSetter.TLSConfig
-		if l.serverSetter.TLSNextProto != nil {
-			l.httpServer.TLSNextProto = l.serverSetter.TLSNextProto
-		}
 
-	case GRpcSever:
-		if l.serverSetter.TLSConfig != nil {
-			opts := []grpc.ServerOption{grpc.Creds(credentials.NewTLS(l.serverSetter.TLSConfig))}
-			l.grpcServer = grpc.NewServer(opts...)
-		} else {
-			l.grpcServer = grpc.NewServer()
+// Notification can run inside the request which will be drained by Shutdown.
+// The sole coordinator reads the latest snapshot after taking this wake-up.
+func (l *listener) onModifiedConfig() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if r := l.run; r != nil {
+		select {
+		case r.changed <- struct{}{}:
+		default:
 		}
 	}
-	return nil
 }
 
-func (l *listener) stopServer() error {
-	switch l.serverSetter.ServerType {
-	case HTTPServer:
-		if l.httpServer != nil {
-			if err := l.httpServer.Shutdown(context.Background()); err != nil {
-				return err
+func (l *listener) serve(r *listenerRun) {
+	var active *servingGeneration
+	var result error
+	var ready sync.Once
+	notifyReady := func() { ready.Do(func() { close(r.ready) }) }
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result = fmt.Errorf("panic in listener: %v", recovered)
+		}
+		if active != nil {
+			active.drain()
+		}
+		l.mu.Lock()
+		l.run = nil
+		var terminal ListenerError
+		if result != nil {
+			if err, ok := result.(ListenerError); ok {
+				terminal = err
+			} else {
+				terminal = newListenerError(UnexpectedError, result.Error(), result)
 			}
 		}
-	case GRpcSever:
-		if l.grpcServer != nil {
-			l.grpcServer.GracefulStop()
-		}
-	}
-	return nil
-}
+		r.finish <- terminal
+		close(r.finish)
+		notifyReady()
+		l.mu.Unlock()
+	}()
 
-func (l *listener) restart() {
-	l.isBusy <- true
-	if !l.stopped {
-		l.logger.Tracef("%v Restart Server", l.serverSetter.Name)
-		_ = l.stopServer() //nolint:errcheck // server shutdown errors are not recoverable
-		l.start <- true
-	}
-	<-l.isBusy
-}
-
-func (l *listener) onRestoredConfig() {
-	l.logger.Tracef("%v - Restored config", l.serverSetter.Name)
-	// After restore, just let the listener stop gracefully
-	// Don't attempt to restart as the config has been restored to disk
-	// and the listener should be manually restarted if needed
-}
-
-func (l *listener) onModifiedConfig() {
-	l.logger.Tracef("%v - Modified config", l.serverSetter.Name)
-
-	// Call validation function
-	if l.configValidatorFunc != nil {
-		valid, err := l.configValidatorFunc(l.configHandler.GetConfig())
-		if err != nil {
-			l.logger.Errorf("%v - Config validation error: %v", l.serverSetter.Name, err)
+	initial := true
+	var config listenerConfig
+	var lastVersion uint64
+	for {
+		select {
+		case <-r.stop:
 			return
+		default:
+		}
+		if !initial {
+			var served <-chan error
+			if active != nil {
+				served = active.done
+			}
+			select {
+			case <-r.stop:
+				return
+			case err := <-served:
+				active = nil
+				if err == nil {
+					return
+				}
+				if result = l.recoverConfig(config, err); result != nil {
+					return
+				}
+				continue
+			case <-r.changed:
+			}
+		}
+		next, err := readListenerConfig(l.configHandler)
+		if err != nil {
+			result = err
+			return
+		}
+		if !initial && next.versioned && next.version == lastVersion {
+			continue
+		}
+		lastVersion = next.version
+		if !initial && !l.needsRestart(next.value) {
+			continue
+		}
+		if active != nil {
+			active.drain()
+			active = nil
+		}
+		select {
+		case <-r.stop:
+			return
+		default:
+		}
+		config = next
+		err = l.errorCatcher.TryCatchError(func() error {
+			var openErr error
+			active, openErr = l.open(config.value)
+			return openErr
+		}, nil)
+		if err != nil {
+			select {
+			case <-r.stop:
+				return
+			default:
+			}
+			if result = l.recoverConfig(config, err); result != nil {
+				return
+			}
+		}
+		initial = false
+		notifyReady()
+	}
+}
+
+func (l *listener) needsRestart(config any) bool {
+	if l.configValidatorFunc != nil {
+		valid, err := l.configValidatorFunc(config)
+		if err != nil {
+			l.logger.Errorf("Config validation error: %v", err)
+			return false
 		}
 		if !valid {
-			l.logger.Tracef("%v - Config validation cancelled", l.serverSetter.Name)
-			return
+			return false
 		}
 	}
+	if l.configApplicatorFunc == nil {
+		return true
+	}
+	restart := false
+	if err := l.configApplicatorFunc(config, &ConfigApplication{NeedsRestart: &restart}); err != nil {
+		l.logger.Errorf("Config application error: %v", err)
+		return false
+	}
+	return restart
+}
 
-	// Call application function
-	needsRestart := false
-	if l.configApplicatorFunc != nil {
-		application := ConfigApplication{NeedsRestart: &needsRestart}
-		err := l.configApplicatorFunc(l.configHandler.GetConfig(), &application)
-		if err != nil {
-			l.logger.Errorf("%v - Config application error: %v", l.serverSetter.Name, err)
-			return
+// A successful rollback keeps the run available for a new change or Stop.
+func (l *listener) recoverConfig(config listenerConfig, failure error) error {
+	l.logger.Errorf("Listener error: %v", failure)
+	if versioned, ok := l.configHandler.(versionedListenerConfig); ok {
+		// Compare the revision and restore under one lock. Another listener may
+		// already have restored, or a writer may have published a newer value.
+		if _, err := versioned.RestoreIfVersion(config.version); err != nil {
+			l.logger.Errorf("Could not restore listener configuration: %v", err)
+			return failure
 		}
+		return nil
 	}
-
-	// If application function is not set or needs restart, restart
-	if l.configApplicatorFunc == nil || needsRestart {
-		l.restart()
-	} else {
-		l.logger.Infof("%v - Config applied without restart", l.serverSetter.Name)
+	if !l.configHandler.CanRestore() {
+		return failure
 	}
+	return l.configHandler.Restore()
 }
 
-func (l *listener) handleRecover(r interface{}, sendError bool) {
-	var err error
-	switch v := r.(type) {
-	case error:
-		err = v
-	case string:
-		err = newListenerError(UnexpectedError, v, nil)
-	default:
-		err = newListenerError(UnexpectedError, "panic in listener", nil)
-	}
-	l.logger.Errorf("%v - panic recovered: %v", l.serverSetter.Name, err)
-	l.finalizeError(err, sendError)
+// The built-in file provider supplies a stable typed snapshot and can condition
+// rollback on its revision. Other ConfigHandler implementations remain valid.
+type versionedListenerConfig interface {
+	ConfigSnapshot() (any, uint64, error)
+	RestoreIfVersion(version uint64) (bool, error)
 }
 
-func (l *listener) handleServerError(err error) {
-	if err.Error() != "http: Server closed" {
-		l.logger.Errorf("%v - %v", l.serverSetter.Name, err.Error())
-		l.finalizeError(err, true)
-	}
+type listenerConfig struct {
+	value     any
+	version   uint64
+	versioned bool
 }
 
-func (l *listener) finalizeError(err error, sendError bool) {
-	if l.configHandler.CanRestore() {
-		if restoreErr := l.configHandler.Restore(); restoreErr != nil {
-			l.logger.Errorf("%v - Failed to restore config: %v", l.serverSetter.Name, restoreErr)
-		}
-	} else if sendError {
-		if listenerErr, ok := l.pipeError(err).(ListenerError); ok {
-			l.finish <- listenerErr
-		} else {
-			l.logger.Errorf("%v - Failed to convert error to ListenerError: %v", l.serverSetter.Name, err)
-		}
-		l.stopped = true
+func readListenerConfig(handler configuration.ConfigHandler) (listenerConfig, error) {
+	if versioned, ok := handler.(versionedListenerConfig); ok {
+		value, version, err := versioned.ConfigSnapshot()
+		return listenerConfig{value: value, version: version, versioned: true}, err
 	}
-}
-
-func (l *listener) pipeError(err error) error {
-	resultError := err
-
-	if errType := reflect.Indirect(reflect.ValueOf(err)).Type(); !errType.Implements(reflect.TypeOf((*ListenerError)(nil)).Elem()) {
-		resultError = newListenerError(UnexpectedError, err.Error(), err)
-	}
-
-	return resultError
+	return listenerConfig{value: handler.GetConfig()}, nil
 }
