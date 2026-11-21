@@ -14,8 +14,16 @@ RUN cd ./cmd/singlepageapp \
     && go build -o /out/singlepageapp .
 
 # Runtime stage
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates
+FROM cgr.dev/chainguard/wolfi-base@sha256:be019c1c74fe69204a42c4e10bc4d886a49bf5403ffa74374ef7baa408fc9a26 AS runtime-packages
+# Install signed runtime packages into a fresh root, retaining the APK inventory.
+RUN mkdir -p /runtime/etc/apk \
+    && cp -R /etc/apk/keys /etc/apk/repositories /runtime/etc/apk/ \
+    && apk --root /runtime --initdb --no-cache add wolfi-baselayout busybox ca-certificates-bundle \
+    && test ! -e /runtime/usr/lib/libcrypto.so.3 \
+    && test ! -e /runtime/usr/lib/libssl.so.3
+
+FROM scratch
+COPY --from=runtime-packages /runtime/ /
 COPY --from=builder /out/singlepageapp /usr/local/bin/singlepageapp
 WORKDIR /app
 
