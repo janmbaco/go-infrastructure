@@ -369,7 +369,7 @@ Sponsors will be recognized here and in release notes.
 ## Project Stats
 
 - **Version:** v2.0.0+
-- **Go Version:** 1.26+ (CI: 1.26.8 and 1.27.1)
+- **Go Version:** 1.26+ (CI: 1.26.11 and 1.27.4)
 - **License:** Apache 2.0
 - **Test Coverage:** 80%+
 - **Actively Maintained:** Yes

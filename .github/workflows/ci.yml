@@ -6,18 +6,21 @@ on:
   pull_request:
     branches: [ master, main, develop ]
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.4'
           cache: true
 
       - name: Run golangci-lint
@@ -31,13 +34,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.26.8', '1.27.1']
+        go-version: ['1.26.11', '1.27.4']
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
@@ -52,8 +55,8 @@ jobs:
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
-        if: matrix.go-version == '1.27.1'
-        uses: codecov/codecov-action@v6
+        if: matrix.go-version == '1.27.4'
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.out
           flags: unittests
@@ -65,12 +68,12 @@ jobs:
     needs: [lint, test]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.4'
           cache: true
 
       - name: Build all packages

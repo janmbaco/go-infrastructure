@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-21
+
+- Update the file watcher to fsnotify 1.10.1 and the networking module to golang.org/x/net v0.63.0, including its required cryptography, system and text dependencies.
+- Test both supported Go lines with Go 1.26.11 and 1.27.4 and build the SinglePageApp image with Go 1.27.4. The module minimum remains Go 1.26.0.
+
 ## [2.2.0] - 2026-10-03
 
 ### Added
