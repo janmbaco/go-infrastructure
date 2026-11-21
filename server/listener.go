@@ -199,7 +199,7 @@ func (l *listener) serve(r *listenerRun) {
 			continue
 		}
 		lastVersion = next.version
-		if !initial && !l.needsRestart(next.value) {
+		if !initial && !l.shouldBind(next.value, active != nil) {
 			continue
 		}
 		if active != nil {
@@ -232,7 +232,7 @@ func (l *listener) serve(r *listenerRun) {
 	}
 }
 
-func (l *listener) needsRestart(config any) bool {
+func (l *listener) shouldBind(config any, serving bool) bool {
 	if l.configValidatorFunc != nil {
 		valid, err := l.configValidatorFunc(config)
 		if err != nil {
@@ -251,7 +251,8 @@ func (l *listener) needsRestart(config any) bool {
 		l.logger.Errorf("Config application error: %v", err)
 		return false
 	}
-	return restart
+	// Hot apply can keep an active server. A recovered run may have none.
+	return restart || !serving
 }
 
 // A successful rollback keeps the run available for a new change or Stop.

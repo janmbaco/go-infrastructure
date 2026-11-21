@@ -323,6 +323,11 @@ func TestListenerRollbackAndNewerConfiguration(t *testing.T) {
 					return fmt.Errorf("rejected in bootstrap")
 				}
 				return nil
+			}).SetConfigApplicatorFunc(func(v any, a *server.ConfigApplication) error {
+				// Revision 2 retires the active server before its bootstrap fails.
+				// Later revisions normally hot-apply, but now need a new binding.
+				*a.NeedsRestart = v.(*revisionConfig).Revision == 2
+				return nil
 			}).GetListener()
 			require.NoError(t, err)
 			finish := l.Start()
