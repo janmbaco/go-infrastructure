@@ -158,7 +158,10 @@ If `ServerType` is `server.GRpcSever` and no gRPC definitions are provided, `Get
 - `SetConfigValidatorFunc`: decide whether a new config should be applied.
 - `SetConfigApplicatorFunc`: apply config changes without forcing a restart when possible.
 
-If no applicator is provided, or if `ConfigApplication.NeedsRestart` is set to `true`, the listener restarts after config changes.
+If no applicator is provided, or if `ConfigApplication.NeedsRestart` is set to `true`, the listener restarts after config changes. The callback schedules work and returns, including when a request on this listener wrote the configuration. One coordinator validates and applies the latest configuration. Notifications can coalesce during a graceful drain. A successful write can therefore precede the new socket becoming available.
+
+`Start` waits for the initial bind attempt, or its failure. Each execution has a fresh finish channel. `Stop` requests a graceful drain and can be called from a request handler. Read the finish channel outside that handler to wait for release of the port and the serving goroutine. A failed generation restores its own configuration when possible. After a successful rollback, a later configuration change or explicit stop and start can open the next listener. The built-in file handler takes a private typed JSON snapshot per revision. Existing custom handlers continue to supply their configuration through `GetConfig` and should return a value that stays stable while their listener uses it.
+
 
 ```go
 listener, err := serverresolver.GetListenerBuilder(resolver, configHandler).

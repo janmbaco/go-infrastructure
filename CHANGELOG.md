@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-11-21
+
+### Fixed
+
+- Serialize HTTP, HTTPS and gRPC listener generations. Configuration writes from a serving request return while the coordinator drains the previous generation. Bursts use the latest configuration, and a previous generation cannot roll back a newer file revision.
+- Complete listener startup and report initialization errors through the finish channel. Repeated stop requests and starting again after a completed drain are supported.
+
 ## [2.3.0] - 2026-11-21
 
 - Update the file watcher to fsnotify 1.10.1 and the networking module to golang.org/x/net v0.63.0, including its required cryptography, system and text dependencies.

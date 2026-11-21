@@ -31,6 +31,7 @@ type fileConfigHandler struct {
 	stopRefresh         chan bool
 	filePath            string
 	period              configuration.Period
+	version             uint64
 	mutex               sync.RWMutex
 	isFreezed           bool
 	ignoreNextFileEvent bool
@@ -103,6 +104,21 @@ func (f *fileConfigHandler) GetConfig() interface{} {
 	return f.dataconfig
 }
 
+// ConfigSnapshot returns a private copy of the current JSON configuration under the read lock.
+func (f *fileConfigHandler) ConfigSnapshot() (any, uint64, error) {
+	f.mutex.RLock()
+	defer f.mutex.RUnlock()
+	data, err := json.Marshal(f.dataconfig)
+	if err != nil {
+		return nil, 0, err
+	}
+	value := f.createConfig()
+	if err = json.Unmarshal(data, value); err != nil {
+		return nil, 0, err
+	}
+	return value, f.version, nil
+}
+
 // SetConfig updates the configuration and writes it to file
 func (f *fileConfigHandler) SetConfig(newConfig interface{}) error {
 	f.mutex.Lock()
@@ -137,6 +153,7 @@ func (f *fileConfigHandler) SetConfig(newConfig interface{}) error {
 		return f.pipeError(err)
 	}
 
+	f.version++
 	f.mutex.Unlock()
 	eventsmanager.Publish(f.eventManager, events.ModifiedEvent{})
 	return nil
@@ -151,6 +168,7 @@ func (f *fileConfigHandler) ForceRefresh() error {
 		if err := copier.Copy(f.dataconfig, f.newConfig); err != nil {
 			return f.pipeError(err)
 		}
+		f.version++
 	}
 	return nil
 }
@@ -164,10 +182,35 @@ func (f *fileConfigHandler) CanRestore() bool {
 
 // Restore restores the configuration to an older version
 func (f *fileConfigHandler) Restore() error {
-	f.mutex.Lock()
+	_, err := f.restore(nil)
+	return err
+}
 
-	if f.oldconfig == nil {
+// RestoreIfVersion leaves a newer update untouched when an older generation fails.
+func (f *fileConfigHandler) RestoreIfVersion(version uint64) (bool, error) {
+	return f.restore(&version)
+}
+
+func (f *fileConfigHandler) restore(expected *uint64) (bool, error) {
+	f.mutex.Lock()
+	if expected != nil && f.version != *expected {
 		f.mutex.Unlock()
+		return false, nil
+	}
+	err := f.restoreLocked()
+	if err == nil {
+		f.version++
+	}
+	f.mutex.Unlock()
+	if err != nil {
+		return false, err
+	}
+	eventsmanager.Publish(f.eventManager, events.RestoredEvent{})
+	return true, nil
+}
+
+func (f *fileConfigHandler) restoreLocked() error {
+	if f.oldconfig == nil {
 		return f.pipeError(newFileConfigHandlerError(OldConfigNilError, "it is no posible restore to old config because is nil", nil))
 	}
 
@@ -175,34 +218,30 @@ func (f *fileConfigHandler) Restore() error {
 	f.newConfig = f.createConfig()
 	newBytes, err := json.Marshal(f.dataconfig)
 	if err != nil {
-		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
 	if err := json.Unmarshal(newBytes, f.newConfig); err != nil {
-		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
 
 	// Restore old config using JSON for deep copy
 	oldBytes, err := json.Marshal(f.oldconfig)
 	if err != nil {
-		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
-	if err := json.Unmarshal(oldBytes, f.dataconfig); err != nil {
-		f.mutex.Unlock()
+	restored := f.createConfig()
+	if err := json.Unmarshal(oldBytes, restored); err != nil {
 		return f.pipeError(err)
 	}
 
+	// Keep the caller-visible pointer while replacing the entire restored value, including maps.
+	reflect.ValueOf(f.dataconfig).Elem().Set(reflect.ValueOf(restored).Elem())
 	f.oldconfig = nil
 	f.ignoreNextFileEvent = true
 	if err := f.writeFile(); err != nil {
-		f.mutex.Unlock()
 		return f.pipeError(err)
 	}
 
-	f.mutex.Unlock()
-	eventsmanager.Publish(f.eventManager, events.RestoredEvent{})
 	return nil
 }
 
@@ -277,6 +316,7 @@ func (f *fileConfigHandler) onModifiedConfigFile() {
 						return err
 					}
 					f.newConfig = nil
+					f.version++
 					f.mutex.Unlock()
 					eventsmanager.Publish(f.eventManager, events.ModifiedEvent{})
 					return nil
