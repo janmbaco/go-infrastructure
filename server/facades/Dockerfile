@@ -14,8 +14,16 @@ RUN cd ./cmd/singlepageapp \
     && go build -o /out/singlepageapp .
 
 # Runtime stage
-FROM alpine:3.23
-RUN apk --no-cache upgrade && apk add --no-cache ca-certificates
+FROM alpine:3.23 AS runtime-packages
+# Install signed runtime packages into a fresh root, retaining the APK inventory.
+RUN mkdir -p /runtime/etc/apk \
+    && cp -R /etc/apk/keys /etc/apk/repositories /runtime/etc/apk/ \
+    && apk --root /runtime --initdb --no-cache add alpine-baselayout alpine-release busybox ca-certificates-bundle \
+    && test ! -e /runtime/usr/lib/libcrypto.so.3 \
+    && test ! -e /runtime/usr/lib/libssl.so.3
+
+FROM scratch
+COPY --from=runtime-packages /runtime/ /
 COPY --from=builder /out/singlepageapp /usr/local/bin/singlepageapp
 WORKDIR /app
 
